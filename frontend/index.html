@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CV Generator — Infotel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 32px rgba(0,0,0,0.10); padding: 2.5rem 2.5rem 2rem; width: 100%; max-width: 520px; }
+    .logo-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 2rem; }
+    .logo-square { width: 40px; height: 40px; background: #205F9A; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px; }
+    .logo-bar h1 { font-size: 1.25rem; font-weight: 700; color: #0E2841; }
+    .logo-bar p { font-size: 0.8rem; color: #7a8fa6; }
+    .drop-zone { border: 2px dashed #b0c4d8; border-radius: 12px; padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s; background: #f8fbff; position: relative; }
+    .drop-zone:hover, .drop-zone.dragover { border-color: #205F9A; background: #eef4fc; }
+    .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .drop-zone p { color: #4a6278; font-size: 0.95rem; }
+    .drop-zone .formats { font-size: 0.78rem; color: #9ab0c3; margin-top: 0.4rem; }
+    .file-selected { margin-top: 1rem; display: none; align-items: center; gap: 10px; background: #eef4fc; border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.88rem; color: #205F9A; }
+    .file-selected span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-generate { width: 100%; margin-top: 1.5rem; padding: 0.9rem; background: #205F9A; color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-generate:hover { background: #174d80; }
+    .btn-generate:active { transform: scale(0.98); }
+    .btn-generate:disabled { background: #94afc8; cursor: not-allowed; }
+    .status-box { margin-top: 1.2rem; border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.9rem; display: none; }
+    .status-box.loading { background: #eef4fc; color: #205F9A; display: flex; align-items: center; gap: 10px; }
+    .status-box.error { background: #fff0f0; color: #c0392b; display: flex; align-items: center; gap: 10px; }
+    .status-box.success { background: #f0fff4; color: #1a7a40; display: flex; flex-direction: column; gap: 10px; }
+    .spinner { width: 20px; height: 20px; border: 3px solid #c8ddf0; border-top-color: #205F9A; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-download { padding: 0.65rem 1.2rem; background: #1a7a40; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s; }
+    .btn-download:hover { background: #155e32; }
+    .steps { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e8eef4; display: flex; }
+    .step { flex: 1; text-align: center; font-size: 0.72rem; color: #9ab0c3; padding: 0 0.5rem; position: relative; }
+    .step::after { content: "→"; position: absolute; right: -6px; top: 0; color: #c8d8e8; }
+    .step:last-child::after { display: none; }
+    .step .s-num { width: 24px; height: 24px; background: #e8f0f8; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #205F9A; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-bar">
+      <div class="logo-square">I</div>
+      <div>
+        <h1>CV Generator</h1>
+        <p>Reformatage automatique au format Infotel</p>
+      </div>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".pdf,.docx,.doc" />
+      <div class="drop-icon">📄</div>
+      <p>Glissez votre CV ici ou <strong>cliquez pour parcourir</strong></p>
+      <p class="formats">PDF ou DOCX acceptés</p>
+    </div>
+
+    <div class="file-selected" id="fileSelected">
+      <span>📎</span>
+      <span id="fileName">—</span>
+    </div>
+
+    <button class="btn-generate" id="btnGenerate" disabled onclick="generateCV()">
+      <span>✨</span> Générer le CV Infotel
+    </button>
+
+    <div class="status-box" id="statusBox"></div>
+
+    <div class="steps">
+      <div class="step"><div class="s-num">1</div>Upload</div>
+      <div class="step"><div class="s-num">2</div>Extraction IA</div>
+      <div class="step"><div class="s-num">3</div>Mise en forme</div>
+      <div class="step"><div class="s-num">4</div>Téléchargement</div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8000";
+    let selectedFile = null;
+
+    const fileInput    = document.getElementById("fileInput");
+    const dropZone     = document.getElementById("dropZone");
+    const btnGen       = document.getElementById("btnGenerate");
+    const statusBox    = document.getElementById("statusBox");
+    const fileSelected = document.getElementById("fileSelected");
+    const fileNameEl   = document.getElementById("fileName");
+
+    fileInput.addEventListener("change", e => { if (e.target.files[0]) setFile(e.target.files[0]); });
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault(); dropZone.classList.remove("dragover");
+      if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+    });
+
+    function setFile(f) {
+      selectedFile = f;
+      fileNameEl.textContent = f.name;
+      fileSelected.style.display = "flex";
+      btnGen.disabled = false;
+      statusBox.style.display = "none";
+    }
+
+    async function generateCV() {
+      if (!selectedFile) return;
+      btnGen.disabled = true;
+      showLoading("Extraction du texte en cours...");
+      setTimeout(() => showLoading("L'IA analyse le CV et structure les données..."), 2000);
+      setTimeout(() => showLoading("Injection dans le template Infotel..."), 8000);
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      try {
+        const res = await fetch(`${API_URL}/generate`, { method: "POST", body: formData });
+
+        if (!res.ok) {
+          const err = await res.json();
+          showError(err.detail || "Erreur inconnue");
+          btnGen.disabled = false;
+          return;
+        }
+
+        // Récupérer le nom du fichier depuis les headers
+        let filename = "FC_Infotel.docx";
+        const cd = res.headers.get("content-disposition");
+        if (cd) {
+          // Gérer le format filename*=utf-8''...
+          const utf8Match = cd.match(/filename\*=utf-8''([^;]+)/i);
+          if (utf8Match) {
+            filename = decodeURIComponent(utf8Match[1]);
+          } else {
+            const normalMatch = cd.match(/filename="?([^";\n]+)"?/i);
+            if (normalMatch) filename = normalMatch[1];
+          }
+        }
+
+        // Télécharger avec le bon nom
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess(filename);
+      } catch (e) {
+        showError("Impossible de contacter le serveur. Vérifiez que le backend est lancé.");
+      }
+      btnGen.disabled = false;
+    }
+
+    function showLoading(msg) {
+      statusBox.className = "status-box loading";
+      statusBox.style.display = "flex";
+      statusBox.innerHTML = `<div class="spinner"></div><span>${msg}</span>`;
+    }
+
+    function showError(msg) {
+      statusBox.className = "status-box error";
+      statusBox.style.display = "flex";
+      statusBox.innerHTML = `<span>❌</span><span>${msg}</span>`;
+    }
+
+    function showSuccess(filename) {
+      statusBox.className = "status-box success";
+      statusBox.style.display = "flex";
+      statusBox.innerHTML = `
+        <div style="font-weight:600">✅ CV généré et téléchargé !</div>
+        <div style="font-size:0.85rem; color:#1a7a40;">📄 ${filename}</div>
+      `;
+    }
+  </script>
+</body>
+</html>
