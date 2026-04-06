@@ -7,7 +7,7 @@ import copy
 import shutil
 from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent / ".env", override=True)
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -29,8 +29,8 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant/après, sans 
 Règles strictes :
 - Ne jamais inventer des informations absentes du CV sauf pour le projet
 - Dates au format MM/YYYY ou YYYY
-- Missions : verbe d'action + résultat, max 2 lignes. Ne jamais écrire "Description mission"
-- Projet : TOUJOURS renseigner. Si absent du CV, le déduire intelligemment depuis le poste, la société et les missions. Toujours une phrase courte et synthétique (max 1 ligne)
+- Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission : verbe d'action + résultat concret, 1 ligne max. Ne jamais écrire "Description mission"
+- Projets : TOUJOURS renseigner. Si une expérience contient plusieurs projets distincts, les lister tous dans le tableau "projets". Si absent du CV, déduire intelligemment depuis le poste, la société et les missions. Chaque projet : phrase courte et synthétique (max 1 ligne)
 - Compétences domaines : exactement 5, phrases courtes et percutantes (max 2 lignes), adaptées au profil
 - Compétences techniques : exactement 5 catégories adaptées au profil du consultant
 - Expériences significatives : regrouper les postes identiques, lister toutes les sociétés séparées par des virgules, durée totale cumulée (ex: "3 ANS", "18 MOIS")
@@ -67,8 +67,8 @@ USER_PROMPT = """Extrais les informations de ce CV et retourne UNIQUEMENT ce JSO
       "date_fin": "",
       "societe": "",
       "poste": "",
-      "projet": "",
-      "missions": ["", ""],
+      "projets": ["Projet 1", "Projet 2 si plusieurs"],
+      "missions": ["Mission 1", "Mission 2", "Mission 3", "...toutes les missions du CV"],
       "environnement_technique": ""
     }
   ],
@@ -103,7 +103,7 @@ def extract_text_from_docx(file_bytes):
 
 def extract_cv_data(text):
     message = client.messages.create(
-        model="claude-sonnet-4-5", max_tokens=4000, system=SYSTEM_PROMPT,
+        model="claude-sonnet-4-5", max_tokens=5000, system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": USER_PROMPT + text}],
     )
     raw = message.content[0].text.strip()
@@ -289,9 +289,30 @@ def _fill_competences(tbl, data):
                 if rPr.find(qn("w:b")) is None:
                     etree.SubElement(rPr, qn("w:b"))
 
-        # Écrire les 5 domaines
+        # Écrire les 5 domaines avec police et interligne augmentés
         for i, para in enumerate(domain_paras):
             _write_para_xml(para, domaines[i] if i < len(domaines) else "")
+            # Taille de police : 22 demi-points (11pt)
+            for r in para._p.iter(qn("w:r")):
+                rPr = r.find(qn("w:rPr"))
+                if rPr is None:
+                    rPr = etree.Element(qn("w:rPr"))
+                    r.insert(0, rPr)
+                for tag in (qn("w:sz"), qn("w:szCs")):
+                    el = rPr.find(tag)
+                    if el is None:
+                        el = etree.SubElement(rPr, tag)
+                    el.set(qn("w:val"), "22")
+            # Interligne : 1.25x
+            pPr = para._p.find(qn("w:pPr"))
+            if pPr is None:
+                pPr = etree.Element(qn("w:pPr"))
+                para._p.insert(0, pPr)
+            spacing = pPr.find(qn("w:spacing"))
+            if spacing is None:
+                spacing = etree.SubElement(pPr, qn("w:spacing"))
+            spacing.set(qn("w:line"), "300")
+            spacing.set(qn("w:lineRule"), "auto")
 
         # ③ Écrire "Compétences Techniques :"
         if tech_title:
@@ -338,9 +359,25 @@ def _fill_competences(tbl, data):
 
 def _fill_experiences_pro(doc, exps):
     exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
+    if not exp_tables:
+        return
+
+    # Ajouter des tableaux manquants en copiant le dernier
+    body = doc.element.body
+    while len(exp_tables) < len(exps):
+        last_tbl = exp_tables[-1]
+        # Insérer un paragraphe vide + copie du tableau après le dernier tableau exp
+        new_tbl = copy.deepcopy(last_tbl._tbl)
+        sep = etree.Element(qn("w:p"))
+        last_tbl._tbl.addnext(new_tbl)
+        new_tbl.addprevious(sep)
+        # Recharger la liste
+        exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
+
     for i, exp in enumerate(exps):
-        if i >= len(exp_tables): break
         _fill_single_exp_pro(exp_tables[i], exp)
+
+    # Vider les tableaux en trop si le template en a plus que le CV
     for i in range(len(exps), len(exp_tables)):
         for row in exp_tables[i].rows:
             for cell in row.cells:
@@ -404,24 +441,81 @@ def _fill_exp_detail_cell(cell, exp):
 
     # Description du projet — paragraphe juste après "Projet :"
     if projet_idx >= 0 and projet_idx + 1 < len(paras):
-        write_para(paras[projet_idx + 1], exp.get("projet", ""), bold=False)
+        projets = exp.get("projets") or ([exp["projet"]] if exp.get("projet") else [])
+        write_para(paras[projet_idx + 1], " / ".join(projets), bold=False)
 
     # "Missions :" en gras
     write_para(missions_para, "Missions :", bold=True)
 
-    # Puces missions — paragraphes entre "Missions :" et "Environnement"
+    # Puces missions — travail en XML pur pour éviter les objets Paragraph invalidés
     missions = [m for m in exp.get("missions", []) if not _is_empty_or_placeholder(m)]
-    bullet_paras = paras[missions_idx + 1:env_idx] if missions_idx >= 0 else []
-    for i, bp in enumerate(bullet_paras):
-        if i < len(missions):
-            write_para(bp, missions[i], bold=False)
-        else:
-            _remove_bullet_style(bp)
 
-    # Max 2 sauts de ligne entre dernière mission et env technique
-    excess = bullet_paras[len(missions):]
-    for ep in excess[2:]:
-        ep._p.getparent().remove(ep._p)
+    if missions_idx >= 0 and missions_para and env_para:
+        cell_xml = missions_para._p.getparent()
+        all_p_xml = [c for c in cell_xml if c.tag == qn("w:p")]
+        m_xml_idx   = all_p_xml.index(missions_para._p)
+        env_xml_idx = all_p_xml.index(env_para._p)
+
+        # Éléments bullet actuels entre "Missions :" et "Environnement"
+        bullet_elems = all_p_xml[m_xml_idx + 1:env_xml_idx]
+
+        # Capturer le pPr (puce/numPr) du premier bullet template pour l'uniformiser
+        ref_ppr = None
+        if bullet_elems:
+            ppr = bullet_elems[0].find(qn("w:pPr"))
+            if ppr is not None:
+                ref_ppr = copy.deepcopy(ppr)
+
+        # Capturer le rPr (police + taille) du paragraphe "Projet" comme référence
+        ref_rpr = None
+        if projet_para:
+            for r in projet_para._p.iter(qn("w:r")):
+                rpr = r.find(qn("w:rPr"))
+                if rpr is not None:
+                    ref_rpr = copy.deepcopy(rpr)
+                    break
+
+        # Ajouter des slots manquants (copie du premier bullet pour garder le style)
+        while len(bullet_elems) < len(missions) and bullet_elems:
+            new_p = copy.deepcopy(bullet_elems[0])
+            env_para._p.addprevious(new_p)
+            bullet_elems.append(new_p)
+
+        # Supprimer les slots en trop
+        for ep in bullet_elems[len(missions):]:
+            cell_xml.remove(ep)
+        bullet_elems = bullet_elems[:len(missions)]
+
+        # Remplir chaque slot avec police/taille/puce uniformes
+        for i, p_elem in enumerate(bullet_elems):
+            # Normaliser le pPr (puce identique pour tous)
+            if ref_ppr is not None:
+                old_ppr = p_elem.find(qn("w:pPr"))
+                if old_ppr is not None:
+                    p_elem.remove(old_ppr)
+                p_elem.insert(0, copy.deepcopy(ref_ppr))
+
+            # Supprimer tous les runs existants
+            for r in list(p_elem.findall(qn("w:r"))):
+                p_elem.remove(r)
+
+            # Créer un run avec le style du paragraphe "Projet" (sans gras)
+            r = etree.SubElement(p_elem, qn("w:r"))
+            if ref_rpr is not None:
+                rpr = copy.deepcopy(ref_rpr)
+                for bold_tag in (qn("w:b"), qn("w:bCs")):
+                    b = rpr.find(bold_tag)
+                    if b is not None:
+                        rpr.remove(b)
+                r.insert(0, rpr)
+            t_elem = etree.SubElement(r, qn("w:t"))
+            t_elem.text = missions[i]
+            t_elem.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+
+    # Saut de ligne entre dernière mission et environnement technique
+    if env_para and bullet_elems:
+        empty_sep = etree.Element(qn("w:p"))
+        env_para._p.addprevious(empty_sep)
 
     # Environnement technique
     env = exp.get("environnement_technique", "")
@@ -467,12 +561,30 @@ def _set_page_break_before(para_elem):
         pPr.insert(0, etree.Element(qn("w:pageBreakBefore")))
 
 
+def _remove_empty_paras_before(body, target_elem):
+    """Supprime les paragraphes vides (sans texte ni shape) juste avant target_elem dans le body."""
+    children = list(body)
+    try:
+        target_idx = children.index(target_elem)
+    except ValueError:
+        return
+    for child in reversed(children[:target_idx]):
+        if child.tag != qn("w:p"):
+            break
+        has_text = bool("".join(t.text or "" for t in child.iter(qn("w:t"))).strip())
+        has_shape = any(e.tag in (VML_TXBX, WPS_TXBX) for e in child.iter())
+        if has_text or has_shape:
+            break
+        body.remove(child)
+
+
 def _remove_paras_before_first_exp(doc):
     """Force un saut de page avant le rectangle 'Expériences professionnelles'."""
     body = doc.element.body
     para = _find_txbx_para(body, "professionnelles")
     print(f"[EXP] para trouvé: {para is not None}")
     if para is not None:
+        _remove_empty_paras_before(body, para)
         _set_page_break_before(para)
 
 
@@ -485,9 +597,10 @@ def _fix_spacing_before_formations(doc):
     formations_para = _find_txbx_para(body, "Formations")
     print(f"[FORM_SPACE] para trouvé: {formations_para is not None}")
     if formations_para is not None:
+        _remove_empty_paras_before(body, formations_para)
         _set_page_break_before(formations_para)
 
-    # Supprimer les paragraphes vides entre le rectangle et le tableau formations
+    # Laisser exactement 1 paragraphe vide entre le rectangle et le tableau formations
     form_tbl = next((t for t in doc.tables if _is_formation_table(t)), None)
     if not form_tbl:
         return
@@ -504,6 +617,9 @@ def _fix_spacing_before_formations(doc):
         else:
             break
         i -= 1
+    # Insérer exactement 1 paragraphe vide comme saut de ligne visuel
+    tbl_idx_fresh = list(body).index(form_tbl._tbl)
+    body.insert(tbl_idx_fresh, etree.Element(qn("w:p")))
 
 
 # ─── Formations ───────────────────────────────────────────────────────────────
@@ -523,7 +639,7 @@ def _fill_formations(tbl, formations):
                 for para in cell.paragraphs:
                     runs_xml = list(para._p.iter(qn("w:r")))
                     if runs_xml:
-                        set_text_in_run(runs_xml[0], form.get(key, ""))
+                        set_text_in_run(runs_xml[0], str(form.get(key) or ""))
                         for r in runs_xml[1:]:
                             for t in r.iter(qn("w:t")): t.text = ""
                         break

@@ -3,88 +3,370 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>CV Generator — Infotel</title>
+  <title>FC Generator — Infotel</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
-    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 32px rgba(0,0,0,0.10); padding: 2.5rem 2.5rem 2rem; width: 100%; max-width: 520px; }
-    .logo-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 2rem; }
-    .logo-square { width: 40px; height: 40px; background: #205F9A; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px; }
-    .logo-bar h1 { font-size: 1.25rem; font-weight: 700; color: #0E2841; }
-    .logo-bar p { font-size: 0.8rem; color: #7a8fa6; }
-    .drop-zone { border: 2px dashed #b0c4d8; border-radius: 12px; padding: 2.5rem 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s; background: #f8fbff; position: relative; }
-    .drop-zone:hover, .drop-zone.dragover { border-color: #205F9A; background: #eef4fc; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    /* Top bar */
+    .topbar {
+      width: 100%;
+      max-width: 540px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.2rem;
+    }
+    .topbar-logo {
+      height: 32px;
+      background: #005491;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+    }
+    .topbar-logo img { height: 18px; filter: brightness(0) invert(1); }
+    .topbar-title { font-size: 0.78rem; color: #7a8fa6; }
+    .topbar-badge {
+      margin-left: auto;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #a0ce4e;
+      background: #eaf5d3;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.03em;
+    }
+
+    /* Card */
+    .card {
+      background: #ffffff;
+      border-radius: 18px;
+      box-shadow: 0 2px 30px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,84,145,0.06);
+      padding: 2.2rem 2.4rem;
+      width: 100%;
+      max-width: 540px;
+    }
+
+    /* Card header */
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 1.6rem;
+      border-bottom: 1.5px solid #f0f4f8;
+      margin-bottom: 1.6rem;
+    }
+    .header-icon {
+      width: 46px; height: 46px;
+      background: #005491;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-icon svg { width: 22px; height: 22px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .header-text h1 { font-size: 1.1rem; font-weight: 700; color: #0E2841; letter-spacing: -0.01em; }
+    .header-text p { font-size: 0.78rem; color: #7a8fa6; margin-top: 2px; }
+    .green-dot { width: 8px; height: 8px; background: #a0ce4e; border-radius: 50%; margin-left: auto; flex-shrink: 0; box-shadow: 0 0 0 3px #eaf5d3; }
+
+    /* Section label */
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #005491;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 0.55rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .section-label::before {
+      content: "";
+      display: inline-block;
+      width: 3px; height: 12px;
+      background: #a0ce4e;
+      border-radius: 2px;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1.5px dashed #c5d8e8;
+      border-radius: 12px;
+      padding: 1.8rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #f8fbff;
+      position: relative;
+    }
+    .drop-zone:hover { border-color: #005491; background: #f0f6fc; }
+    .drop-zone.dragover { border-color: #005491; background: #f0f6fc; }
     .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-    .drop-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
-    .drop-zone p { color: #4a6278; font-size: 0.95rem; }
-    .drop-zone .formats { font-size: 0.78rem; color: #9ab0c3; margin-top: 0.4rem; }
-    .file-selected { margin-top: 1rem; display: none; align-items: center; gap: 10px; background: #eef4fc; border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.88rem; color: #205F9A; }
-    .file-selected span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .btn-generate { width: 100%; margin-top: 1.5rem; padding: 0.9rem; background: #205F9A; color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .btn-generate:hover { background: #174d80; }
-    .btn-generate:active { transform: scale(0.98); }
-    .btn-generate:disabled { background: #94afc8; cursor: not-allowed; }
-    .status-box { margin-top: 1.2rem; border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.9rem; display: none; }
-    .status-box.loading { background: #eef4fc; color: #205F9A; display: flex; align-items: center; gap: 10px; }
+    .drop-icon { font-size: 1.9rem; margin-bottom: 0.5rem; }
+    .drop-zone p { color: #3a3a3c; font-size: 0.87rem; }
+    .drop-zone p strong { color: #005491; font-weight: 600; }
+    .drop-zone .formats { font-size: 0.72rem; color: #aeaeb2; margin-top: 0.3rem; }
+
+    .file-pill {
+      display: none;
+      width: fit-content;
+      margin-top: 0.65rem;
+      align-items: center;
+      gap: 7px;
+      background: #eef6ff;
+      border-radius: 30px;
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+      color: #005491;
+      font-weight: 500;
+    }
+
+    .divider { height: 1px; background: #f0f4f8; margin: 1.4rem 0; }
+
+    /* Select agence */
+    .select-agence {
+      width: 100%;
+      border: 1.5px solid #c5d8e8;
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      color: #1d1d1f;
+      font-family: inherit;
+      background: #f8fbff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23005491' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 1rem center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .select-agence:focus { border-color: #005491; box-shadow: 0 0 0 3px rgba(0,84,145,0.08); }
+
+    /* Textarea */
+    .fiche-textarea {
+      width: 100%;
+      border: 1.5px solid #c5d8e8;
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+      font-size: 0.85rem;
+      color: #1d1d1f;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 95px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: #f8fbff;
+      line-height: 1.5;
+    }
+    .fiche-textarea:focus { border-color: #005491; background: #fff; box-shadow: 0 0 0 3px rgba(0,84,145,0.08); }
+    .fiche-textarea::placeholder { color: #b0c4d8; }
+
+    /* Slider */
+    .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; }
+    .slider-badge {
+      font-size: 0.72rem; font-weight: 700;
+      color: #005491;
+      background: #e6f0f9;
+      padding: 3px 12px;
+      border-radius: 20px;
+      transition: all 0.2s;
+    }
+    input[type=range] {
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #005491 50%, #dde8f0 50%);
+      cursor: pointer;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #005491;
+      box-shadow: 0 1px 6px rgba(0,84,145,0.2);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 0.69rem; color: #b0c4d8; margin-top: 0.55rem; }
+
+    /* Info note */
+    .info-note {
+      display: flex; align-items: flex-start; gap: 8px;
+      margin-top: 1.2rem;
+      background: #f8fbff;
+      border-left: 3px solid #a0ce4e;
+      border-radius: 0 10px 10px 0;
+      padding: 0.7rem 1rem;
+      font-size: 0.77rem;
+      color: #4a6278;
+      line-height: 1.5;
+    }
+
+    /* Button */
+    .btn-generate {
+      width: 100%;
+      margin-top: 1.6rem;
+      padding: 0.9rem;
+      background: #005491;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background 0.2s, transform 0.1s;
+      box-shadow: 0 2px 12px rgba(0,84,145,0.25);
+    }
+    .btn-generate:hover { background: #00406e; }
+    .btn-generate:active { transform: scale(0.99); }
+    .btn-generate:disabled { background: #94afc8; cursor: not-allowed; box-shadow: none; }
+    .btn-generate .arrow { color: #a0ce4e; font-size: 1.1rem; }
+
+    /* Status */
+    .status-box { margin-top: 1.2rem; border-radius: 12px; padding: 1rem 1.2rem; font-size: 0.88rem; display: none; }
+    .status-box.loading { background: #f0f6fc; color: #005491; display: flex; align-items: center; gap: 10px; }
     .status-box.error { background: #fff0f0; color: #c0392b; display: flex; align-items: center; gap: 10px; }
-    .status-box.success { background: #f0fff4; color: #1a7a40; display: flex; flex-direction: column; gap: 10px; }
-    .spinner { width: 20px; height: 20px; border: 3px solid #c8ddf0; border-top-color: #205F9A; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+    .status-box.success { background: #f0fff4; color: #1a7a40; display: flex; flex-direction: column; gap: 8px; }
+    .spinner { width: 18px; height: 18px; border: 2.5px solid #c5d8e8; border-top-color: #005491; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .btn-download { padding: 0.65rem 1.2rem; background: #1a7a40; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s; }
-    .btn-download:hover { background: #155e32; }
-    .steps { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e8eef4; display: flex; }
-    .step { flex: 1; text-align: center; font-size: 0.72rem; color: #9ab0c3; padding: 0 0.5rem; position: relative; }
-    .step::after { content: "→"; position: absolute; right: -6px; top: 0; color: #c8d8e8; }
+
+    /* Steps */
+    .steps { display: flex; margin-top: 1.8rem; padding-top: 1.4rem; border-top: 1px solid #f0f4f8; }
+    .step { flex: 1; text-align: center; position: relative; }
+    .step::after { content: ""; position: absolute; top: 9px; left: 55%; width: 90%; height: 1px; background: #e8eef4; }
     .step:last-child::after { display: none; }
-    .step .s-num { width: 24px; height: 24px; background: #e8f0f8; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #205F9A; font-size: 0.75rem; }
+    .step .dot {
+      width: 20px; height: 20px;
+      background: #e8eef4;
+      border-radius: 50%;
+      margin: 0 auto 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; font-weight: 700; color: #7a8fa6;
+      position: relative; z-index: 1;
+    }
+    .step .dot.active { background: #005491; color: white; }
+    .step span { font-size: 0.63rem; color: #b0c4d8; }
   </style>
 </head>
 <body>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <img src="https://portail.infotel.com/wp-content/uploads/2018/07/logo@2.png" alt="Infotel" />
+    </div>
+    <span class="topbar-title">FC Generator</span>
+    <span class="topbar-badge">v2</span>
+  </div>
+
+  <!-- Card -->
   <div class="card">
-    <div class="logo-bar">
-      <div class="logo-square">I</div>
-      <div>
-        <h1>CV Generator</h1>
-        <p>Reformatage automatique au format Infotel</p>
+
+    <div class="card-header">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       </div>
+      <div class="header-text">
+        <h1>Générateur de Fiches de Compétences</h1>
+        <p>Génération automatique au format Infotel</p>
+      </div>
+      <div class="green-dot"></div>
     </div>
 
+    <!-- CV Upload -->
+    <div class="section-label">CV du consultant</div>
     <div class="drop-zone" id="dropZone">
       <input type="file" id="fileInput" accept=".pdf,.docx,.doc" />
       <div class="drop-icon">📄</div>
-      <p>Glissez votre CV ici ou <strong>cliquez pour parcourir</strong></p>
-      <p class="formats">PDF ou DOCX acceptés</p>
+      <p>Glissez votre CV ici ou <strong>parcourir</strong></p>
+      <p class="formats">PDF · DOCX</p>
+    </div>
+    <div class="file-pill" id="filePill">
+      <span>📎</span><span id="fileName">—</span>
     </div>
 
-    <div class="file-selected" id="fileSelected">
-      <span>📎</span>
-      <span id="fileName">—</span>
+    <div class="divider"></div>
+
+    <!-- Agence -->
+    <div class="section-label">Agence</div>
+    <select class="select-agence" id="agenceSelect">
+      <option value="niort">Agence Niort</option>
+      <option value="lemans">Agence Le Mans</option>
+    </select>
+
+    <div class="divider"></div>
+
+    <!-- Besoin client -->
+    <div class="section-label">Informations sur le besoin client <span style="font-size:0.7rem;color:#b0c4d8;text-transform:none;font-weight:400;margin-left:4px;">— optionnel</span></div>
+    <textarea class="fiche-textarea" id="jobDescription" placeholder="Collez ici le besoin client ou la fiche de poste cible..."></textarea>
+
+    <div class="divider"></div>
+
+    <!-- Slider -->
+    <div class="slider-header">
+      <div class="section-label" style="margin:0">Orientation du profil selon le besoin</div>
+      <span class="slider-badge" id="sliderLabel">Modérée</span>
+    </div>
+    <input type="range" min="0" max="2" step="1" value="1" id="influenceSlider" oninput="updateSlider(this.value)" />
+    <div class="slider-labels">
+      <span>Aucune</span>
+      <span>Modérée</span>
+      <span>Maximale</span>
     </div>
 
+    <!-- Note -->
+    <div class="info-note">
+      🔒 Les compétences et expériences ne sont jamais inventées — seule la mise en valeur évolue selon l'orientation choisie.
+    </div>
+
+    <!-- Bouton -->
     <button class="btn-generate" id="btnGenerate" disabled onclick="generateCV()">
-      <span>✨</span> Générer le CV Infotel
+      <span class="arrow">›</span> Générer la FC Infotel
     </button>
 
     <div class="status-box" id="statusBox"></div>
 
+    <!-- Steps -->
     <div class="steps">
-      <div class="step"><div class="s-num">1</div>Upload</div>
-      <div class="step"><div class="s-num">2</div>Extraction IA</div>
-      <div class="step"><div class="s-num">3</div>Mise en forme</div>
-      <div class="step"><div class="s-num">4</div>Téléchargement</div>
+      <div class="step"><div class="dot active" id="s1">1</div><span>Upload</span></div>
+      <div class="step"><div class="dot" id="s2">2</div><span>Config</span></div>
+      <div class="step"><div class="dot" id="s3">3</div><span>Analyse IA</span></div>
+      <div class="step"><div class="dot" id="s4">4</div><span>Mise en forme</span></div>
+      <div class="step"><div class="dot" id="s5">5</div><span>Téléchargement</span></div>
     </div>
+
   </div>
 
   <script>
     const API_URL = window.location.origin;
     let selectedFile = null;
 
-    const fileInput    = document.getElementById("fileInput");
-    const dropZone     = document.getElementById("dropZone");
-    const btnGen       = document.getElementById("btnGenerate");
-    const statusBox    = document.getElementById("statusBox");
-    const fileSelected = document.getElementById("fileSelected");
-    const fileNameEl   = document.getElementById("fileName");
+    const fileInput  = document.getElementById("fileInput");
+    const dropZone   = document.getElementById("dropZone");
+    const btnGen     = document.getElementById("btnGenerate");
+    const statusBox  = document.getElementById("statusBox");
+    const filePill   = document.getElementById("filePill");
+    const fileNameEl = document.getElementById("fileName");
+
+    const sliderLabels = ["Aucune", "Modérée", "Maximale"];
 
     fileInput.addEventListener("change", e => { if (e.target.files[0]) setFile(e.target.files[0]); });
     dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
@@ -97,20 +379,39 @@
     function setFile(f) {
       selectedFile = f;
       fileNameEl.textContent = f.name;
-      fileSelected.style.display = "flex";
+      filePill.style.display = "flex";
       btnGen.disabled = false;
       statusBox.style.display = "none";
+      setStep(2);
+    }
+
+    function updateSlider(v) {
+      document.getElementById("sliderLabel").textContent = sliderLabels[v];
+      const pct = parseInt(v) * 50;
+      document.getElementById("influenceSlider").style.background =
+        `linear-gradient(90deg, #005491 ${pct}%, #dde8f0 ${pct}%)`;
+    }
+
+    function setStep(n) {
+      for (let i = 1; i <= 5; i++) {
+        const dot = document.getElementById("s" + i);
+        dot.classList.toggle("active", i <= n);
+      }
     }
 
     async function generateCV() {
       if (!selectedFile) return;
       btnGen.disabled = true;
+      setStep(3);
       showLoading("Extraction du texte en cours...");
       setTimeout(() => showLoading("L'IA analyse le CV et structure les données..."), 2000);
       setTimeout(() => showLoading("Injection dans le template Infotel..."), 8000);
 
       const formData = new FormData();
       formData.append("file", selectedFile);
+      formData.append("job_description", document.getElementById("jobDescription").value || "");
+      formData.append("influence", document.getElementById("influenceSlider").value);
+      formData.append("agence", document.getElementById("agenceSelect").value);
 
       try {
         const res = await fetch(`${API_URL}/generate`, { method: "POST", body: formData });
@@ -119,37 +420,34 @@
           const err = await res.json();
           showError(err.detail || "Erreur inconnue");
           btnGen.disabled = false;
+          setStep(2);
           return;
         }
 
-        // Récupérer le nom du fichier depuis les headers
         let filename = "FC_Infotel.docx";
         const cd = res.headers.get("content-disposition");
         if (cd) {
-          // Gérer le format filename*=utf-8''...
           const utf8Match = cd.match(/filename\*=utf-8''([^;]+)/i);
-          if (utf8Match) {
-            filename = decodeURIComponent(utf8Match[1]);
-          } else {
-            const normalMatch = cd.match(/filename="?([^";\n]+)"?/i);
-            if (normalMatch) filename = normalMatch[1];
+          if (utf8Match) filename = decodeURIComponent(utf8Match[1]);
+          else {
+            const m = cd.match(/filename="?([^";\n]+)"?/i);
+            if (m) filename = m[1];
           }
         }
 
-        // Télécharger avec le bon nom
         const blob = await res.blob();
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
-        a.href     = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
+        setStep(5);
         showSuccess(filename);
       } catch (e) {
         showError("Impossible de contacter le serveur. Vérifiez que le backend est lancé.");
+        setStep(2);
       }
       btnGen.disabled = false;
     }
@@ -159,19 +457,17 @@
       statusBox.style.display = "flex";
       statusBox.innerHTML = `<div class="spinner"></div><span>${msg}</span>`;
     }
-
     function showError(msg) {
       statusBox.className = "status-box error";
       statusBox.style.display = "flex";
       statusBox.innerHTML = `<span>❌</span><span>${msg}</span>`;
     }
-
     function showSuccess(filename) {
       statusBox.className = "status-box success";
       statusBox.style.display = "flex";
       statusBox.innerHTML = `
-        <div style="font-weight:600">✅ CV généré et téléchargé !</div>
-        <div style="font-size:0.85rem; color:#1a7a40;">📄 ${filename}</div>
+        <div style="font-weight:600">✅ Fiche de compétence générée !</div>
+        <div style="font-size:0.82rem;color:#1a7a40;">📄 ${filename}</div>
       `;
     }
   </script>

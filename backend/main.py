@@ -7,8 +7,8 @@ import copy
 import shutil
 from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env")
-from fastapi import FastAPI, UploadFile, File, HTTPException
+load_dotenv(Path(__file__).parent / ".env", override=True)
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 import anthropic
@@ -101,10 +101,43 @@ def extract_text_from_docx(file_bytes):
         os.unlink(tmp)
 
 
-def extract_cv_data(text):
+def build_system_prompt(job_description: str, influence: int) -> str:
+    base = SYSTEM_PROMPT
+    if not job_description.strip() or influence == 0:
+        return base
+
+    influence_instructions = {
+        1: (
+            "Un besoin client est fourni. Oriente MODÉRÉMENT le CV :\n"
+            "- Mets légèrement en avant les expériences et compétences en lien avec ce besoin\n"
+            "- Reformule quelques missions pour mieux correspondre au poste\n"
+            "- Priorise les compétences techniques pertinentes\n"
+            "- Ne jamais inventer de compétences ou expériences absentes du CV"
+        ),
+        2: (
+            "Un besoin client est fourni. Oriente FORTEMENT le CV :\n"
+            "- Priorise systématiquement les expériences et compétences en lien avec ce besoin\n"
+            "- Reformule les missions pour les aligner au maximum avec le poste visé\n"
+            "- Mets en avant uniquement les compétences techniques pertinentes\n"
+            "- Adapte le titre du poste si une formulation plus proche du besoin existe dans le CV\n"
+            "- Ne jamais inventer de compétences ou expériences absentes du CV"
+        ),
+    }
+    return base + f"\n\nINSTRUCTION D'ORIENTATION :\n{influence_instructions[influence]}"
+
+
+def extract_cv_data(text: str, job_description: str = "", influence: int = 0):
+    system = build_system_prompt(job_description, influence)
+    user_content = USER_PROMPT + text
+    if job_description.strip() and influence > 0:
+        user_content += f"\n\n--- BESOIN CLIENT ---\n{job_description.strip()}"
+
+    print(f"[ORIENTATION] influence={influence}, besoin={'oui ('+str(len(job_description))+' chars)' if job_description.strip() else 'non'}")
+    if job_description.strip() and influence > 0:
+        print(f"[ORIENTATION] Besoin: {job_description[:100]}...")
     message = client.messages.create(
-        model="claude-sonnet-4-5", max_tokens=8000, system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": USER_PROMPT + text}],
+        model="claude-sonnet-4-5", max_tokens=8000, system=system,
+        messages=[{"role": "user", "content": user_content}],
     )
     raw = message.content[0].text.strip()
     raw = re.sub(r"^```json\s*", "", raw)
@@ -651,9 +684,72 @@ def _fill_formations(tbl, formations):
                     for t in r.iter(qn("w:t")): t.text = ""
 
 
+# ─── Footer agence ────────────────────────────────────────────────────────────
+# Le texte du footer est splitté entre plusieurs <w:t> dans le XML du docx.
+# On inspecte le zip et on remplace les fragments exacts tels qu'ils apparaissent.
+
+FOOTER_REPLACEMENTS = {
+    # Agence Niort : DA = Béatrice HERITIER (06 62 01 25 58), reste inchangé
+    # "Béatrice HERITIER" fait 4 chars de moins qu'Anne-Sophie MORANCAIS (17 vs 21)
+    # → on ajoute 4 espaces de padding à la fin du run "HERITIER" pour réaligner
+    "niort": [
+        ("Anne-Sophie ",                       "B\u00e9atrice "),
+        ("<w:t>MORANCAIS</w:t>",               "<w:t>HERITIER</w:t>"),
+        # Le séparateur "- " est unique à la ligne DA (Robin/Pierre utilisent "-" sans espace)
+        # On insère le padding ici — le preserve est déjà présent sur ce tag
+        ('preserve">- </w:t>',                 'preserve">               - </w:t>'),  # +15 espaces avant le tiret
+        ("06 82 30 40 25",                     "06 62 01 25 58"),
+    ],
+    # Agence Le Mans : adresse + IA1 = Benjamin BOUCHER (07 64 26 10 63)
+    # "Benjamin BOUCHER" visuellement ~5 espaces plus large que Robin LAVOGEZ
+    # → run 23 espaces → 15 espaces (total 18 vs 26 pour Robin, -8)
+    "lemans": [
+        ("Infotel Niort,",                     "Infotel Le Mans,"),
+        (" 4 Bd Louis Tardy, 79000 NIORT",     " 2 Promenade d\u2019Androm\u00e8de, 72000 LE MANS"),
+        ("Robin ",                             "Benjamin "),
+        ("LAVOGEZ",                            "BOUCHER"),
+        ("06 64 41 42 84",                     "07 64 26 10 63"),
+        ("                       ",            "                   "),  # 23 → 19 espaces (total 22)
+    ],
+}
+
+
+def _fill_footer_zip(docx_path: str, agence: str):
+    """Patch footer*.xml directement dans le zip — contourne le problème de splits de w:t."""
+    import io, zipfile as zf
+
+    agence = agence.lower().strip()
+    replacements = FOOTER_REPLACEMENTS.get(agence)
+    if not replacements:
+        print(f"[FOOTER] Agence '{agence}' : pas de remplacement défini.")
+        return
+
+    with open(docx_path, "rb") as fh:
+        raw = fh.read()
+
+    buf     = io.BytesIO(raw)
+    out_buf = io.BytesIO()
+
+    with zf.ZipFile(buf, "r") as zin, zf.ZipFile(out_buf, "w", zf.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            data = zin.read(item.filename)
+            if "footer" in item.filename.lower() and item.filename.endswith(".xml"):
+                xml = data.decode("utf-8")
+                for old, new in replacements:
+                    n = xml.count(old)
+                    if n:
+                        xml = xml.replace(old, new)
+                        print(f"[FOOTER] '{old}' → '{new}'  ({n}×)")
+                data = xml.encode("utf-8")
+            zout.writestr(item, data)
+
+    with open(docx_path, "wb") as fh:
+        fh.write(out_buf.getvalue())
+
+
 # ─── Build DOCX ───────────────────────────────────────────────────────────────
 
-def build_docx(data):
+def build_docx(data, agence: str = "niort"):
     # Copier le template dans un fichier temp pour ne jamais toucher l'original
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
         tmp_template = tmp.name
@@ -686,13 +782,23 @@ def build_docx(data):
 
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
         doc.save(f.name)
-        return f.name
+        out_path = f.name
+
+    # Patch footer directement dans le zip (après save) — le texte est splitté en w:t
+    _fill_footer_zip(out_path, agence)
+
+    return out_path
 
 
 # ─── Routes API ───────────────────────────────────────────────────────────────
 
 @app.post("/generate")
-async def generate_cv(file: UploadFile = File(...)):
+async def generate_cv(
+    file: UploadFile = File(...),
+    job_description: str = Form(default=""),
+    influence: int = Form(default=0),
+    agence: str = Form(default="niort"),
+):
     content = await file.read()
     filename = file.filename.lower()
 
@@ -707,7 +813,7 @@ async def generate_cv(file: UploadFile = File(...)):
         raise HTTPException(400, "Impossible d'extraire le texte du fichier.")
 
     try:
-        data = extract_cv_data(text)
+        data = extract_cv_data(text, job_description=job_description, influence=influence)
     except json.JSONDecodeError as e:
         traceback.print_exc()
         raise HTTPException(500, f"L'IA n'a pas retourné un JSON valide: {e}")
@@ -715,8 +821,9 @@ async def generate_cv(file: UploadFile = File(...)):
         traceback.print_exc()
         raise HTTPException(500, f"Erreur lors de l'appel IA: {e}")
 
+    print(f"[AGENCE] agence={agence}")
     try:
-        output_path = build_docx(data)
+        output_path = build_docx(data, agence=agence)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(500, f"Erreur lors de la génération du DOCX: {e}")
