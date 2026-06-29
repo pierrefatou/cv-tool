@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Infotel FC Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; padding: 2rem; }
+
+    .topbar { display: flex; justify-content: space-between; align-items: center; background: #0E2841; border-radius: 14px; padding: 14px 20px; margin-bottom: 1.5rem; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .logo { height: 28px; background: #005491; border-radius: 6px; padding: 0 10px; display: flex; align-items: center; }
+    .logo img { height: 16px; filter: brightness(0) invert(1); }
+    .topbar h1 { color: white; font-size: 0.95rem; font-weight: 700; }
+    .badge { font-size: 0.68rem; font-weight: 700; color: #a0ce4e; background: rgba(160,206,78,0.15); padding: 3px 10px; border-radius: 20px; }
+    .btn-back { background: none; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 14px; color: #b0c4d8; font-size: 0.82rem; cursor: pointer; transition: all 0.2s; }
+    .btn-back:hover { border-color: white; color: white; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+    .stat-card { background: white; border-radius: 14px; padding: 18px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+    .stat-card .num { font-size: 2.2rem; font-weight: 700; color: #005491; }
+    .stat-card .label { font-size: 0.75rem; color: #7a8fa6; margin-top: 4px; }
+
+    .section { background: white; border-radius: 14px; padding: 20px; margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .section-header h2 { font-size: 0.95rem; font-weight: 700; color: #0E2841; }
+    .btn-add { background: #005491; color: white; border: none; border-radius: 8px; padding: 7px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+    .btn-add:hover { background: #004070; }
+
+    .table-header { display: grid; grid-template-columns: 1fr 90px 90px 90px 70px; gap: 8px; padding: 8px 14px; font-size: 0.72rem; font-weight: 700; color: #7a8fa6; text-transform: uppercase; letter-spacing: 0.04em; }
+    .user-row { display: grid; grid-template-columns: 1fr 90px 90px 90px 70px; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 10px; font-size: 0.84rem; margin-bottom: 6px; background: #f8fbff; transition: background 0.15s; }
+    .user-row:hover { background: #f0f6fc; }
+    .user-row.admin-row { background: #eef6ff; border: 1px solid #c5d8e8; }
+    .username { font-weight: 600; color: #0E2841; }
+    .username small { display: block; font-weight: 400; font-size: 0.72rem; color: #9ab0c3; margin-top: 1px; }
+    .num-cell { text-align: center; font-weight: 700; color: #005491; }
+    .num-cell small { display: block; font-weight: 400; font-size: 0.7rem; color: #9ab0c3; }
+    .date-cell { text-align: center; font-size: 0.75rem; color: #7a8fa6; }
+    .btn-del { background: none; border: 1px solid #f0b0b0; border-radius: 6px; padding: 3px 8px; font-size: 0.72rem; color: #c0392b; cursor: pointer; transition: all 0.15s; }
+    .btn-del:hover { background: #fff0f0; }
+    .protected { font-size: 0.7rem; color: #9ab0c3; text-align: center; }
+
+    .history-row { display: grid; grid-template-columns: 110px 1fr 130px; gap: 8px; padding: 8px 14px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 4px; background: #f8fbff; }
+    .h-user { font-weight: 600; color: #005491; }
+    .h-file { color: #4a6278; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .h-date { color: #9ab0c3; text-align: right; font-size: 0.72rem; }
+    .empty-msg { color: #9ab0c3; font-size: 0.84rem; padding: 8px 14px; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(14,40,65,0.4); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
+    .modal-overlay.open { display: flex; }
+    .modal { background: white; border-radius: 16px; padding: 24px; width: 100%; max-width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,0.15); }
+    .modal h3 { font-size: 1rem; font-weight: 700; color: #0E2841; margin-bottom: 16px; }
+    .m-field { margin-bottom: 12px; }
+    .m-field label { display: block; font-size: 0.78rem; font-weight: 700; color: #4a6278; margin-bottom: 4px; }
+    .m-field input, .m-field select { width: 100%; border: 1.5px solid #c5d8e8; border-radius: 10px; padding: 0.65rem 0.9rem; font-size: 0.88rem; font-family: inherit; outline: none; background: #f8fbff; }
+    .m-field input:focus { border-color: #005491; background: white; }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .btn-cancel { flex: 1; padding: 0.7rem; background: #f0f4f8; border: none; border-radius: 8px; font-size: 0.88rem; cursor: pointer; font-family: inherit; }
+    .btn-confirm { flex: 2; padding: 0.7rem; background: #005491; color: white; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .modal-error { color: #c0392b; font-size: 0.8rem; margin-top: 8px; display: none; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <img src="https://portail.infotel.com/wp-content/uploads/2018/07/logo@2.png" alt="Infotel"/>
+    </div>
+    <h1>Panneau Administration</h1>
+    <span class="badge">v2</span>
+  </div>
+  <button class="btn-back" onclick="window.location.href='/'">← Retour à l'outil</button>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="num" id="stat-users">—</div><div class="label">Utilisateurs</div></div>
+  <div class="stat-card"><div class="num" id="stat-total">—</div><div class="label">Fiches générées (total)</div></div>
+  <div class="stat-card"><div class="num" id="stat-month">—</div><div class="label">Ce mois-ci</div></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Utilisateurs</h2>
+    <button class="btn-add" onclick="openModal()">+ Ajouter</button>
+  </div>
+  <div class="table-header">
+    <div>Utilisateur</div>
+    <div style="text-align:center">Total</div>
+    <div style="text-align:center">Ce mois</div>
+    <div style="text-align:center">Dernière cnx</div>
+    <div></div>
+  </div>
+  <div id="users-list"></div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>Historique récent</h2></div>
+  <div id="history-list"></div>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>Ajouter un utilisateur</h3>
+    <div class="m-field"><label>Identifiant</label><input type="text" id="new-username" placeholder="prenom.nom"/></div>
+    <div class="m-field"><label>Mot de passe</label><input type="password" id="new-password" placeholder="••••••••"/></div>
+    <div class="m-field">
+      <label>Rôle</label>
+      <select id="new-role">
+        <option value="user">Consultant</option>
+        <option value="admin">Administrateur</option>
+      </select>
+    </div>
+    <div class="modal-error" id="modal-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+      <button class="btn-confirm" onclick="addUser()">Créer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = window.location.origin;
+  const token = localStorage.getItem("token");
+  if (!token) window.location.href = "/";
+
+  async function load() {
+    try {
+      const [sr, ur] = await Promise.all([
+        fetch(API + "/admin/stats", {headers: {"Authorization": "Bearer " + token}}),
+        fetch(API + "/admin/users", {headers: {"Authorization": "Bearer " + token}})
+      ]);
+      if (sr.status === 401 || sr.status === 403) { window.location.href = "/"; return; }
+
+      const stats = await sr.json();
+      const users = await ur.json();
+
+      document.getElementById("stat-users").textContent = stats.total_users;
+      document.getElementById("stat-total").textContent = stats.total_generated;
+      document.getElementById("stat-month").textContent = stats.monthly_generated;
+
+      document.getElementById("users-list").innerHTML = users.map(u => {
+        const isAdmin = u.role === "admin";
+        const last = u.last_login ? new Date(u.last_login).toLocaleDateString("fr-FR") : "Jamais";
+        return `<div class="user-row ${isAdmin ? 'admin-row' : ''}">
+          <div class="username">${u.username}<small>${isAdmin ? 'Administrateur' : 'Consultant'}</small></div>
+          <div class="num-cell">${u.total_generated}<small>fiches</small></div>
+          <div class="num-cell">${u.monthly_generated}<small>ce mois</small></div>
+          <div class="date-cell">${last}</div>
+          <div>${isAdmin
+            ? '<span class="protected">Protégé</span>'
+            : `<button class="btn-del" onclick="deleteUser('${u.username}')">Supprimer</button>`
+          }</div>
+        </div>`;
+      }).join("");
+
+      const hist = stats.recent_history;
+      document.getElementById("history-list").innerHTML = hist.length === 0
+        ? '<div class="empty-msg">Aucune fiche générée pour l\'instant</div>'
+        : hist.map(h => `
+          <div class="history-row">
+            <div class="h-user">${h.username}</div>
+            <div class="h-file">📄 ${h.filename}</div>
+            <div class="h-date">${h.date_display}</div>
+          </div>`).join("");
+    } catch(e) { console.error(e); }
+  }
+
+  async function deleteUser(username) {
+    if (!confirm(`Supprimer "${username}" ?`)) return;
+    const r = await fetch(`${API}/admin/users/${username}`, {
+      method: "DELETE", headers: {"Authorization": "Bearer " + token}
+    });
+    if (r.ok) load(); else alert("Erreur lors de la suppression");
+  }
+
+  function openModal() {
+    document.getElementById("modal").classList.add("open");
+    document.getElementById("new-username").value = "";
+    document.getElementById("new-password").value = "";
+    document.getElementById("modal-error").style.display = "none";
+  }
+
+  function closeModal() { document.getElementById("modal").classList.remove("open"); }
+
+  async function addUser() {
+    const username = document.getElementById("new-username").value.trim();
+    const password = document.getElementById("new-password").value;
+    const role = document.getElementById("new-role").value;
+    const errEl = document.getElementById("modal-error");
+    errEl.style.display = "none";
+    if (!username || !password) {
+      errEl.textContent = "Identifiant et mot de passe requis";
+      errEl.style.display = "block"; return;
+    }
+    const r = await fetch(API + "/admin/users", {
+      method: "POST",
+      headers: {"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+      body: JSON.stringify({username, password, role})
+    });
+    if (r.ok) { closeModal(); load(); }
+    else {
+      const e = await r.json();
+      errEl.textContent = e.detail || "Erreur";
+      errEl.style.display = "block";
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
