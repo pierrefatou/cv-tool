@@ -149,7 +149,7 @@
           <div class="num-cell">${u.total_generated}<small>fiches</small></div>
           <div class="num-cell">${u.monthly_generated}<small>ce mois</small></div>
           <div class="date-cell">${last}</div>
-          <div>${isAdmin
+          <div>${u.username === "admin"
             ? '<span class="protected">Protégé</span>'
             : `<button class="btn-del" onclick="deleteUser('${u.username}')">Supprimer</button>`
           }</div>
