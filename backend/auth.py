@@ -1,16 +1,52 @@
-import json
 import os
 import bcrypt
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 from jose import JWTError, jwt
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "infotel-cv-generator-secret-key-2024")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 8
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-DB_PATH = Path(__file__).parent.parent / "data" / "users.json"
+
+def get_conn():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+
+
+def init_db():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'user',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    last_login TIMESTAMP,
+                    total_generated INTEGER DEFAULT 0,
+                    monthly_generated INTEGER DEFAULT 0
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS history (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute("SELECT 1 FROM users WHERE username = 'admin'")
+            if not cur.fetchone():
+                hashed = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
+                cur.execute(
+                    "INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                    ("admin", hashed, "admin")
+                )
+        conn.commit()
 
 
 def hash_password(password: str) -> str:
@@ -21,49 +57,22 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def init_db():
-    DB_PATH.parent.mkdir(exist_ok=True)
-    if not DB_PATH.exists():
-        default = {
-            "users": [
-                {
-                    "username": "admin",
-                    "password": hash_password("admin123"),
-                    "role": "admin",
-                    "created_at": datetime.now().isoformat(),
-                    "total_generated": 0,
-                    "monthly_generated": 0,
-                    "last_login": None,
-                    "history": []
-                }
-            ]
-        }
-        DB_PATH.write_text(json.dumps(default, indent=2, ensure_ascii=False))
-
-
-def load_db():
-    init_db()
-    return json.loads(DB_PATH.read_text(encoding="utf-8"))
-
-
-def save_db(data):
-    DB_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-
-
 def get_user(username: str):
-    db = load_db()
-    return next((u for u in db["users"] if u["username"] == username), None)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+            row = cur.fetchone()
+            return dict(row) if row else None
 
 
 def authenticate_user(username: str, password: str):
     user = get_user(username)
     if not user or not verify_password(password, user["password"]):
         return None
-    db = load_db()
-    for u in db["users"]:
-        if u["username"] == username:
-            u["last_login"] = datetime.now().isoformat()
-    save_db(db)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET last_login = NOW() WHERE username = %s", (username,))
+        conn.commit()
     return user
 
 
@@ -81,70 +90,75 @@ def decode_token(token: str) -> Optional[str]:
 
 
 def log_generation(username: str, filename: str):
-    db = load_db()
-    now = datetime.now()
-    for u in db["users"]:
-        if u["username"] == username:
-            u["total_generated"] = u.get("total_generated", 0) + 1
-            u["monthly_generated"] = u.get("monthly_generated", 0) + 1
-            if "history" not in u:
-                u["history"] = []
-            u["history"].insert(0, {
-                "filename": filename,
-                "date": now.isoformat(),
-                "date_display": now.strftime("%d/%m/%Y %H:%M")
-            })
-            u["history"] = u["history"][:50]
-    save_db(db)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO history (username, filename) VALUES (%s, %s)", (username, filename))
+            cur.execute(
+                "UPDATE users SET total_generated = total_generated + 1, monthly_generated = monthly_generated + 1 WHERE username = %s",
+                (username,)
+            )
+        conn.commit()
 
 
 def add_user(username: str, password: str, role: str = "user"):
-    db = load_db()
-    if any(u["username"] == username for u in db["users"]):
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                    (username, hash_password(password), role)
+                )
+            conn.commit()
+        return True, "OK"
+    except Exception:
         return False, "Utilisateur déjà existant"
-    db["users"].append({
-        "username": username,
-        "password": hash_password(password),
-        "role": role,
-        "created_at": datetime.now().isoformat(),
-        "total_generated": 0,
-        "monthly_generated": 0,
-        "last_login": None,
-        "history": []
-    })
-    save_db(db)
-    return True, "OK"
 
 
 def delete_user(username: str):
     if username == "admin":
         return False, "Impossible de supprimer le compte admin principal"
-    db = load_db()
-    if not any(u["username"] == username for u in db["users"]):
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE username = %s", (username,))
+            deleted = cur.rowcount
+        conn.commit()
+    if deleted == 0:
         return False, "Utilisateur introuvable"
-    db["users"] = [u for u in db["users"] if u["username"] != username]
-    save_db(db)
     return True, "OK"
 
 
 def get_all_users():
-    db = load_db()
-    return db["users"]
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT username, role, total_generated, monthly_generated,
+                       last_login::text as last_login, created_at::text as created_at
+                FROM users ORDER BY created_at
+            """)
+            return [dict(r) for r in cur.fetchall()]
 
 
 def get_stats():
-    db = load_db()
-    users = db["users"]
-    total = sum(u.get("total_generated", 0) for u in users)
-    monthly = sum(u.get("monthly_generated", 0) for u in users)
-    history = []
-    for u in users:
-        for h in u.get("history", []):
-            history.append({**h, "username": u["username"]})
-    history.sort(key=lambda x: x["date"], reverse=True)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) as total_users, COALESCE(SUM(total_generated),0) as total_generated, COALESCE(SUM(monthly_generated),0) as monthly_generated FROM users")
+            stats = dict(cur.fetchone())
+            cur.execute("""
+                SELECT username, filename, created_at::text as date,
+                       TO_CHAR(created_at, 'DD/MM/YYYY HH24:MI') as date_display
+                FROM history ORDER BY created_at DESC LIMIT 20
+            """)
+            history = [dict(r) for r in cur.fetchall()]
     return {
-        "total_users": len(users),
-        "total_generated": total,
-        "monthly_generated": monthly,
-        "recent_history": history[:20]
+        "total_users": stats["total_users"],
+        "total_generated": stats["total_generated"],
+        "monthly_generated": stats["monthly_generated"],
+        "recent_history": history
     }
+
+
+try:
+    init_db()
+    print("[DB] Base de données initialisée avec succès")
+except Exception as e:
+    print(f"[DB] Erreur d'initialisation: {e}")
