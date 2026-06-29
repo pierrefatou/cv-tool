@@ -1,17 +1,24 @@
 import json
 import os
+import bcrypt
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "infotel-cv-generator-secret-key-2024")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 8
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DB_PATH = Path(__file__).parent.parent / "data" / "users.json"
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 def init_db():
@@ -21,7 +28,7 @@ def init_db():
             "users": [
                 {
                     "username": "admin",
-                    "password": pwd_context.hash("admin123"),
+                    "password": hash_password("admin123"),
                     "role": "admin",
                     "created_at": datetime.now().isoformat(),
                     "total_generated": 0,
@@ -46,10 +53,6 @@ def save_db(data):
 def get_user(username: str):
     db = load_db()
     return next((u for u in db["users"] if u["username"] == username), None)
-
-
-def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
 
 
 def authenticate_user(username: str, password: str):
@@ -101,7 +104,7 @@ def add_user(username: str, password: str, role: str = "user"):
         return False, "Utilisateur déjà existant"
     db["users"].append({
         "username": username,
-        "password": pwd_context.hash(password),
+        "password": hash_password(password),
         "role": role,
         "created_at": datetime.now().isoformat(),
         "total_generated": 0,
