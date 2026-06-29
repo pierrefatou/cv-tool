@@ -8,9 +8,13 @@ import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env", override=True)
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from auth import (authenticate_user, create_token, decode_token, log_generation,
+                  add_user, delete_user, get_all_users, get_stats, get_user)
 import anthropic
 import pdfplumber
 from docx import Document
@@ -22,6 +26,86 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 TEMPLATE_PATH = Path(__file__).parent.parent / "template" / "template_infotel.docx"
 FRONTEND_PATH = Path(__file__).parent.parent / "frontend" / "index.html"
+ADMIN_PATH = Path(__file__).parent.parent / "frontend" / "admin.html"
+security = HTTPBearer()
+
+
+# ─── Auth helpers ─────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class AddUserRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "user"
+
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    username = decode_token(credentials.credentials)
+    if not username:
+        raise HTTPException(401, "Token invalide ou expiré")
+    user = get_user(username)
+    if not user:
+        raise HTTPException(401, "Utilisateur introuvable")
+    return user
+
+
+def require_admin(user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Accès réservé à l'admin")
+    return user
+
+
+# ─── Routes Auth ──────────────────────────────────────────────────────────────
+
+@app.post("/auth/login")
+def login(req: LoginRequest):
+    user = authenticate_user(req.username, req.password)
+    if not user:
+        raise HTTPException(401, "Identifiant ou mot de passe incorrect")
+    token = create_token(user["username"])
+    return {"token": token, "username": user["username"], "role": user["role"]}
+
+
+@app.get("/auth/me")
+def me(user=Depends(get_current_user)):
+    return {"username": user["username"], "role": user["role"],
+            "total_generated": user.get("total_generated", 0)}
+
+
+# ─── Routes Admin ─────────────────────────────────────────────────────────────
+
+@app.get("/admin/stats")
+def admin_stats(user=Depends(require_admin)):
+    return get_stats()
+
+
+@app.get("/admin/users")
+def admin_users(user=Depends(require_admin)):
+    users = get_all_users()
+    return [{"username": u["username"], "role": u["role"],
+             "total_generated": u.get("total_generated", 0),
+             "monthly_generated": u.get("monthly_generated", 0),
+             "last_login": u.get("last_login"),
+             "created_at": u.get("created_at")} for u in users]
+
+
+@app.post("/admin/users")
+def admin_add_user(req: AddUserRequest, user=Depends(require_admin)):
+    ok, msg = add_user(req.username, req.password, req.role)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"message": "Utilisateur créé"}
+
+
+@app.delete("/admin/users/{username}")
+def admin_delete_user(username: str, user=Depends(require_admin)):
+    ok, msg = delete_user(username)
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"message": "Utilisateur supprimé"}
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
 SYSTEM_PROMPT = """Tu es un expert en analyse de CV pour un cabinet de conseil IT.
@@ -798,6 +882,7 @@ async def generate_cv(
     job_description: str = Form(default=""),
     influence: int = Form(default=0),
     agence: str = Form(default="niort"),
+    user=Depends(get_current_user),
 ):
     content = await file.read()
     filename = file.filename.lower()
@@ -833,6 +918,8 @@ async def generate_cv(
     titre      = data.get("poste", "Consultant").strip().title()
     fname      = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
 
+    log_generation(user["username"], fname)
+
     return FileResponse(output_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=fname)
@@ -843,9 +930,13 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def serve_frontend():
-    return FileResponse(str(FRONTEND_PATH))
+    return FRONTEND_PATH.read_text(encoding="utf-8")
+
+@app.get("/admin-panel", response_class=HTMLResponse)
+def serve_admin():
+    return ADMIN_PATH.read_text(encoding="utf-8")
 
 
 @app.get("/debug-competences")
