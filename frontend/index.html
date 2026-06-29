@@ -264,9 +264,128 @@
     }
     .step .dot.active { background: #005491; color: white; }
     .step span { font-size: 0.63rem; color: #b0c4d8; }
+
+    /* Login overlay */
+    .login-overlay {
+      position: fixed; inset: 0;
+      background: #f0f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 2rem;
+    }
+    .login-card {
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 2px 30px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,84,145,0.06);
+      padding: 2.2rem 2.4rem;
+      width: 100%; max-width: 420px;
+    }
+    .login-header {
+      display: flex; align-items: center; gap: 14px;
+      padding-bottom: 1.4rem;
+      border-bottom: 1.5px solid #f0f4f8;
+      margin-bottom: 1.4rem;
+    }
+    .login-field { margin-bottom: 1rem; }
+    .login-field label { display: block; font-size: 0.78rem; font-weight: 700; color: #4a6278; margin-bottom: 5px; }
+    .login-field input {
+      width: 100%;
+      border: 1.5px solid #c5d8e8;
+      border-radius: 10px;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      transition: border 0.2s;
+      background: #f8fbff;
+    }
+    .login-field input:focus { border-color: #005491; background: white; }
+    .btn-login {
+      width: 100%; padding: 0.85rem;
+      background: #005491; color: white;
+      border: none; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; margin-top: 0.5rem;
+      transition: background 0.2s;
+    }
+    .btn-login:hover { background: #004070; }
+    .btn-login:disabled { background: #94afc8; cursor: not-allowed; }
+    .login-error {
+      background: #fff0f0; color: #c0392b;
+      border-radius: 8px; padding: 0.6rem 1rem;
+      font-size: 0.82rem; margin-top: 0.8rem;
+      display: none;
+    }
+
+    /* User topbar */
+    .user-topbar {
+      width: 100%; max-width: 540px;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 0.5rem;
+      display: none;
+    }
+    .user-topbar-info { font-size: 0.78rem; color: #7a8fa6; margin-right: auto; }
+    .user-topbar-info strong { color: #005491; }
+    .btn-logout {
+      background: none; border: 1px solid #c5d8e8;
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 0.75rem; color: #7a8fa6;
+      cursor: pointer; font-family: inherit;
+    }
+    .btn-logout:hover { border-color: #005491; color: #005491; }
+    .btn-admin-top {
+      background: #0E2841; color: white;
+      border: none; border-radius: 6px;
+      padding: 4px 10px; font-size: 0.75rem;
+      cursor: pointer; font-family: inherit;
+      display: none;
+    }
+    .counter-bar {
+      font-size: 0.72rem; color: #9ab0c3;
+      text-align: center; margin-top: 0.5rem;
+      display: none;
+    }
+    .counter-bar strong { color: #005491; }
   </style>
 </head>
 <body>
+
+  <!-- Login Overlay -->
+  <div class="login-overlay" id="login-overlay" style="display:none">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="header-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="header-text">
+          <h1>FC Generator</h1>
+          <p>Connectez-vous pour continuer</p>
+        </div>
+      </div>
+      <div class="login-field">
+        <label>Identifiant</label>
+        <input type="text" id="login-username" placeholder="prenom.nom" autocomplete="username" />
+      </div>
+      <div class="login-field">
+        <label>Mot de passe</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn-login" id="btn-login" onclick="doLogin()">Se connecter</button>
+      <div class="login-error" id="login-error"></div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="main-app" style="display:none; flex-direction:column; align-items:center; width:100%">
+
+  <!-- User topbar -->
+  <div class="user-topbar" id="user-topbar" style="display:flex">
+    <div class="user-topbar-info">Connecté : <strong id="display-username"></strong></div>
+    <button class="btn-admin-top" id="btn-admin" onclick="window.location.href='/admin-panel'">⚙️ Admin</button>
+    <button class="btn-logout" onclick="doLogout()">Déconnexion</button>
+  </div>
 
   <!-- Top bar -->
   <div class="topbar">
@@ -344,6 +463,10 @@
 
     <div class="status-box" id="statusBox"></div>
 
+    <div class="counter-bar" id="counter-bar">
+      Fiches générées par vous : <strong id="counter-val">0</strong>
+    </div>
+
     <!-- Steps -->
     <div class="steps">
       <div class="step"><div class="dot active" id="s1">1</div><span>Upload</span></div>
@@ -358,6 +481,91 @@
   <script>
     const API_URL = window.location.origin;
     let selectedFile = null;
+    let token = localStorage.getItem("token");
+    let currentUser = null;
+
+    // ── Auth check au chargement ──
+    window.onload = async () => {
+      if (token) {
+        try {
+          const r = await fetch(API_URL + "/auth/me", {headers: {"Authorization": "Bearer " + token}});
+          if (r.ok) {
+            currentUser = await r.json();
+            showApp();
+            return;
+          }
+        } catch(e) {}
+      }
+      showLogin();
+    };
+
+    function showLogin() {
+      document.getElementById("login-overlay").style.display = "flex";
+      document.getElementById("main-app").style.display = "none";
+    }
+
+    function showApp() {
+      document.getElementById("login-overlay").style.display = "none";
+      document.getElementById("main-app").style.display = "flex";
+      document.getElementById("display-username").textContent = currentUser.username;
+      if (currentUser.role === "admin") {
+        document.getElementById("btn-admin").style.display = "inline-flex";
+      }
+      updateCounter();
+    }
+
+    async function updateCounter() {
+      try {
+        const r = await fetch(API_URL + "/auth/me", {headers: {"Authorization": "Bearer " + token}});
+        if (r.ok) {
+          const u = await r.json();
+          document.getElementById("counter-val").textContent = u.total_generated;
+          document.getElementById("counter-bar").style.display = "flex";
+        }
+      } catch(e) {}
+    }
+
+    async function doLogin() {
+      const username = document.getElementById("login-username").value.trim();
+      const password = document.getElementById("login-password").value;
+      const errEl = document.getElementById("login-error");
+      const btn = document.getElementById("btn-login");
+      errEl.style.display = "none";
+      btn.disabled = true; btn.textContent = "Connexion...";
+      try {
+        const r = await fetch(API_URL + "/auth/login", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({username, password})
+        });
+        if (!r.ok) {
+          const e = await r.json();
+          errEl.textContent = e.detail || "Identifiant ou mot de passe incorrect";
+          errEl.style.display = "block";
+          return;
+        }
+        const data = await r.json();
+        token = data.token;
+        currentUser = {username: data.username, role: data.role};
+        localStorage.setItem("token", token);
+        showApp();
+      } catch(e) {
+        errEl.textContent = "Impossible de contacter le serveur";
+        errEl.style.display = "block";
+      } finally {
+        btn.disabled = false; btn.textContent = "Se connecter";
+      }
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "Enter" && document.getElementById("login-overlay").style.display !== "none") doLogin();
+    });
+
+    function doLogout() {
+      token = null; currentUser = null;
+      localStorage.removeItem("token");
+      showLogin();
+    }
 
     const fileInput  = document.getElementById("fileInput");
     const dropZone   = document.getElementById("dropZone");
@@ -414,7 +622,11 @@
       formData.append("agence", document.getElementById("agenceSelect").value);
 
       try {
-        const res = await fetch(`${API_URL}/generate`, { method: "POST", body: formData });
+        const res = await fetch(`${API_URL}/generate`, {
+          method: "POST", body: formData,
+          headers: {"Authorization": "Bearer " + token}
+        });
+        if (res.status === 401) { doLogout(); return; }
 
         if (!res.ok) {
           const err = await res.json();
@@ -445,6 +657,7 @@
 
         setStep(5);
         showSuccess(filename);
+        updateCounter();
       } catch (e) {
         showError("Impossible de contacter le serveur. Vérifiez que le backend est lancé.");
         setStep(2);
@@ -471,5 +684,7 @@
       `;
     }
   </script>
+  </div><!-- /main-app -->
+
 </body>
 </html>
