@@ -124,15 +124,27 @@
 <script>
   const API = window.location.origin;
   const token = localStorage.getItem("token");
-  if (!token) window.location.href = "/";
+
+  async function checkAuth() {
+    if (!token) { window.location.href = "/"; return false; }
+    try {
+      const r = await fetch(API + "/auth/me", {headers: {"Authorization": "Bearer " + token}});
+      if (!r.ok) { localStorage.removeItem("token"); window.location.href = "/"; return false; }
+      const user = await r.json();
+      if (user.role !== "admin") { window.location.href = "/"; return false; }
+      return true;
+    } catch(e) { window.location.href = "/"; return false; }
+  }
 
   async function load() {
+    const ok = await checkAuth();
+    if (!ok) return;
     try {
       const [sr, ur] = await Promise.all([
         fetch(API + "/admin/stats", {headers: {"Authorization": "Bearer " + token}}),
         fetch(API + "/admin/users", {headers: {"Authorization": "Bearer " + token}})
       ]);
-      if (sr.status === 401 || sr.status === 403) { window.location.href = "/"; return; }
+      if (sr.status === 401 || sr.status === 403) { localStorage.removeItem("token"); window.location.href = "/"; return; }
 
       const stats = await sr.json();
       const users = await ur.json();
