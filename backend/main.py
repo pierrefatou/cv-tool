@@ -795,9 +795,19 @@ FOOTER_REPLACEMENTS = {
         ("06 64 41 42 84",                     "07 64 26 10 63"),
         ("                       ",            "                   "),  # 23 → 19 espaces (total 22)
     ],
+
+    # Agence Orléans
+    "orleans": [
+        ("Infotel Niort,",                     "Infotel Orléans,"),
+        (" 4 Bd Louis Tardy, 79000 NIORT",     " Le Primat, 2 Avenue de Paris, 45000 ORLEANS"),
+        ("Robin ",                             "Marion "),
+        ("LAVOGEZ",                            "PIZARRO"),
+        ("06 64 41 42 84",                     "06 67 86 71 52"),
+        ("Pierre ",                            "Manon "),
+        ("FATOU",                              "FILLION"),
+        ("06 60 23 72 61",                     "07 63 48 54 20"),
+    ],
 }
-
-
 def _fill_footer_zip(docx_path: str, agence: str):
     """Patch footer*.xml directement dans le zip — contourne le problème de splits de w:t."""
     import io, zipfile as zf
