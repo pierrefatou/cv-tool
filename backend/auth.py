@@ -118,8 +118,10 @@ def add_user(username: str, password: str, role: str = "user"):
 
 def delete_user(username: str):
     if username == "admin":
-        return False, "Impossible de supprimer l'admin"
+        return False, "Impossible de supprimer le compte admin principal"
     db = load_db()
+    if not any(u["username"] == username for u in db["users"]):
+        return False, "Utilisateur introuvable"
     db["users"] = [u for u in db["users"] if u["username"] != username]
     save_db(db)
     return True, "OK"
