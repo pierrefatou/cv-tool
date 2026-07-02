@@ -700,13 +700,62 @@
       }
     }
 
+    let progressInterval = null;
+    let progressStartTime = null;
+    const LOADING_MESSAGES = [
+      "Lecture du CV...",
+      "Extraction des informations...",
+      "Analyse du profil par l'IA...",
+      "Identification des compétences clés...",
+      "Reformulation des missions...",
+      "Structuration des expériences...",
+      "Mise en page au format Infotel...",
+      "Finalisation du document..."
+    ];
+    const ESTIMATED_DURATION = 55; // secondes, ajustable selon le temps réel observé
+
+    function startProgress() {
+      progressStartTime = Date.now();
+      let msgIndex = 0;
+      showProgress(LOADING_MESSAGES[0], 0, 0);
+
+      progressInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - progressStartTime) / 1000);
+        // La barre avance vers 92% max tant que ce n'est pas fini, pour ne jamais mentir sur un 100% prématuré
+        let pct = Math.min(92, Math.round((elapsed / ESTIMATED_DURATION) * 100));
+        msgIndex = Math.min(LOADING_MESSAGES.length - 1, Math.floor(elapsed / 6));
+        showProgress(LOADING_MESSAGES[msgIndex], pct, elapsed);
+      }, 1000);
+    }
+
+    function stopProgress() {
+      if (progressInterval) clearInterval(progressInterval);
+      progressInterval = null;
+    }
+
+    function showProgress(msg, pct, elapsed) {
+      statusBox.className = "status-box loading";
+      statusBox.style.display = "block";
+      statusBox.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+          <div class="spinner"></div>
+          <span style="font-weight:600">${msg}</span>
+        </div>
+        <div style="background:#e8eef4; border-radius:8px; height:7px; overflow:hidden; margin-bottom:6px;">
+          <div style="background:linear-gradient(90deg,#005491,#2e8fd9); height:100%; width:${pct}%; border-radius:8px; transition:width 0.4s;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:#8a9bb0;">
+          <span>Temps écoulé : ${elapsed}s</span>
+          <span>${pct}%</span>
+        </div>
+      `;
+    }
+
     async function generateCV() {
       if (!selectedFile) return;
       btnGen.disabled = true;
       setStep(3);
-      showLoading("Extraction du texte en cours...");
-      setTimeout(() => showLoading("L'IA analyse le CV et structure les données..."), 2000);
-      setTimeout(() => showLoading("Injection dans le template Infotel..."), 8000);
+      startProgress();
 
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -719,10 +768,11 @@
           method: "POST", body: formData,
           headers: {"Authorization": "Bearer " + token}
         });
-        if (res.status === 401) { doLogout(); return; }
+        if (res.status === 401) { stopProgress(); doLogout(); return; }
 
         if (!res.ok) {
           const err = await res.json();
+          stopProgress();
           showError(err.detail || "Erreur inconnue");
           btnGen.disabled = false;
           setStep(2);
@@ -748,10 +798,13 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
+        stopProgress();
+        showProgress(LOADING_MESSAGES[LOADING_MESSAGES.length - 1], 100, Math.floor((Date.now() - progressStartTime) / 1000));
         setStep(5);
-        showSuccess(filename);
+        setTimeout(() => { showSuccess(filename); }, 400);
         updateCounter();
       } catch (e) {
+        stopProgress();
         showError("Impossible de contacter le serveur. Vérifiez que le backend est lancé.");
         setStep(2);
       }
