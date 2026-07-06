@@ -113,8 +113,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant/après, sans 
 Règles strictes :
 - Ne jamais inventer des informations absentes du CV sauf pour le projet
 - Dates au format MM/YYYY ou YYYY
-- Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission commence par un NOM (pas un verbe) suivi du contexte et résultat concret, 1 ligne max. Exemples : 'Conception des APIs REST...', 'Mise en place des pipelines CI/CD...', 'Rédaction de la documentation technique...'. Ne jamais écrire "Description mission"
-- titre_poste et poste : TOUJOURS court, maximum 4 mots, sans spécialisation ni technologie. Exemples : "Chef de Projet MOA", "Développeur Backend", "Architecte Solution", "Ingénieur DevOps". Ne jamais inclure de "|" ou de "/" ni de précisions comme "Bâle III", "N3", "Linux".
+- Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission : verbe d'action + résultat concret, 1 ligne max. Ne jamais écrire "Description mission"
 - Projets : TOUJOURS renseigner. Si une expérience contient plusieurs projets distincts, les lister tous dans le tableau "projets". Si absent du CV, déduire intelligemment depuis le poste, la société et les missions. Chaque projet : phrase courte et synthétique (max 1 ligne)
 - Compétences domaines : exactement 5, phrases courtes et percutantes (max 2 lignes), adaptées au profil
 - Compétences techniques : exactement 5 catégories adaptées au profil du consultant
@@ -221,7 +220,7 @@ def extract_cv_data(text: str, job_description: str = "", influence: int = 0):
     if job_description.strip() and influence > 0:
         print(f"[ORIENTATION] Besoin: {job_description[:100]}...")
     message = client.messages.create(
-        model="claude-sonnet-4-5", max_tokens=3500, system=system,
+        model="claude-sonnet-4-5", max_tokens=8000, system=system,
         messages=[{"role": "user", "content": user_content}],
     )
     raw = message.content[0].text.strip()
@@ -396,18 +395,9 @@ def _fill_competences(tbl, data):
         print(f"[COMP] tech_title idx={tech_title_idx}: {get_text_in_element(tech_title._p) if tech_title else None}")
         print(f"[COMP] tech_paras: {[get_text_in_element(p._p) for p in tech_paras_found]}")
 
-        # ② Écrire "Domaine de Compétences" en gras avec espace avant
+        # ② Écrire "Domaine de Compétences" en gras
         if domain_title:
             _write_para_xml(domain_title, "Domaine de Compétences")
-            # Ajouter un espace AVANT le titre Domaine de Compétences
-            pPr = domain_title._p.find(qn("w:pPr"))
-            if pPr is None:
-                pPr = etree.Element(qn("w:pPr"))
-                domain_title._p.insert(0, pPr)
-            spacing = pPr.find(qn("w:spacing"))
-            if spacing is None:
-                spacing = etree.SubElement(pPr, qn("w:spacing"))
-            spacing.set(qn("w:before"), "200")  # ~1 ligne avant
             runs_xml = list(domain_title._p.iter(qn("w:r")))
             if runs_xml:
                 rPr = runs_xml[0].find(qn("w:rPr"))
@@ -441,17 +431,9 @@ def _fill_competences(tbl, data):
             spacing.set(qn("w:line"), "300")
             spacing.set(qn("w:lineRule"), "auto")
 
-        # ③ Écrire "Compétences Techniques :" avec espacement réduit avant (2 sauts de ligne = ~240)
+        # ③ Écrire "Compétences Techniques :"
         if tech_title:
             _write_para_xml(tech_title, "Compétences Techniques :")
-            pPr = tech_title._p.find(qn("w:pPr"))
-            if pPr is None:
-                pPr = etree.Element(qn("w:pPr"))
-                tech_title._p.insert(0, pPr)
-            spacing = pPr.find(qn("w:spacing"))
-            if spacing is None:
-                spacing = etree.SubElement(pPr, qn("w:spacing"))
-            spacing.set(qn("w:before"), "240")  # 2 sauts de ligne avant Compétences Techniques
 
         # Effacer les paras fantômes entre domaines et titre tech
         for p in paras[domain_start + 5:tech_title_idx]:
@@ -577,10 +559,7 @@ def _fill_exp_detail_cell(cell, exp):
     # Description du projet — paragraphe juste après "Projet :"
     if projet_idx >= 0 and projet_idx + 1 < len(paras):
         projets = exp.get("projets") or ([exp["projet"]] if exp.get("projet") else [])
-        # Projets séparés par un saut de ligne
-        projets_text = "
-".join(projets)
-        write_para(paras[projet_idx + 1], projets_text, bold=False)
+        write_para(paras[projet_idx + 1], " / ".join(projets), bold=False)
 
     # "Missions :" en gras
     write_para(missions_para, "Missions :", bold=True)
