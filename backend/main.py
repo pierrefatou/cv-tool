@@ -220,7 +220,7 @@ def extract_cv_data(text: str, job_description: str = "", influence: int = 0):
     if job_description.strip() and influence > 0:
         print(f"[ORIENTATION] Besoin: {job_description[:100]}...")
     message = client.messages.create(
-        model="claude-sonnet-4-5", max_tokens=8000, system=system,
+        model="claude-sonnet-4-5", max_tokens=16000, system=system,
         messages=[{"role": "user", "content": user_content}],
     )
     raw = message.content[0].text.strip()
