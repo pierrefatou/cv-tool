@@ -113,7 +113,7 @@ Tu réponds UNIQUEMENT avec un objet JSON valide, sans texte avant/après, sans 
 Règles strictes :
 - Ne jamais inventer des informations absentes du CV sauf pour le projet
 - Dates au format MM/YYYY ou YYYY
-- Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission : verbe d'action + résultat concret, 1 ligne max. Ne jamais écrire "Description mission"
+- Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission commence par un NOM (jamais un verbe). Exemples : "Conception des APIs REST...", "Mise en place des pipelines CI/CD...", "Rédaction de la documentation technique...". 1 ligne max. Ne jamais écrire "Description mission"
 - Projets : TOUJOURS renseigner. Si une expérience contient plusieurs projets distincts, les lister tous dans le tableau "projets". Si absent du CV, déduire intelligemment depuis le poste, la société et les missions. Chaque projet : phrase courte et synthétique (max 1 ligne)
 - Compétences domaines : exactement 5, phrases courtes et percutantes (max 2 lignes), adaptées au profil
 - Compétences techniques : exactement 5 catégories adaptées au profil du consultant
