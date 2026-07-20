@@ -118,6 +118,7 @@ Règles strictes :
 - Compétences domaines : exactement 5, phrases courtes et percutantes (max 2 lignes), adaptées au profil
 - Compétences techniques : exactement 5 catégories adaptées au profil du consultant
 - Expériences significatives : regrouper les postes identiques, lister toutes les sociétés séparées par des virgules, durée totale cumulée (ex: "3 ANS", "18 MOIS")
+- titre_poste et poste : TOUJOURS maximum 40 caractères espaces compris, sans spécialisation ni technologie. Exemples : "Chef de Projet MOA", "Développeur Backend", "Architecte Solution". Ne jamais inclure de "|" ou "/"
 """
 
 USER_PROMPT = """Extrais les informations de ce CV et retourne UNIQUEMENT ce JSON (sans markdown) :
@@ -504,6 +505,17 @@ def _fill_experiences_pro(doc, exps):
 
 def _fill_single_exp_pro(tbl, exp):
     try:
+        # Autoriser le tableau à se couper entre deux pages
+        for row in tbl.rows:
+            tr = row._tr
+            trPr = tr.find(qn("w:trPr"))
+            if trPr is None:
+                trPr = etree.Element(qn("w:trPr"))
+                tr.insert(0, trPr)
+            cantSplit = trPr.find(qn("w:cantSplit"))
+            if cantSplit is not None:
+                trPr.remove(cantSplit)
+
         # Ligne 0 : dates | société
         row0 = tbl.rows[0]
         paras0 = row0.cells[0].paragraphs
