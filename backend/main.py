@@ -571,7 +571,7 @@ def _fill_exp_detail_cell(cell, exp):
     # Description du projet — paragraphe juste après "Projet :"
     if projet_idx >= 0 and projet_idx + 1 < len(paras):
         projets = exp.get("projets") or ([exp["projet"]] if exp.get("projet") else [])
-        write_para(paras[projet_idx + 1], " / ".join(projets), bold=False)
+        write_para(paras[projet_idx + 1], "\n".join(projets), bold=False)
 
     # "Missions :" en gras
     write_para(missions_para, "Missions :", bold=True)
