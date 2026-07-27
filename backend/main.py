@@ -483,20 +483,60 @@ def _fill_competences(tbl, data):
 
 # ─── Expériences professionnelles ─────────────────────────────────────────────
 
+def _remove_space_after_table(tbl):
+    """Supprime l'espacement après un tableau en modifiant le paragraphe qui le suit."""
+    tbl_elem = tbl._tbl
+    next_elem = tbl_elem.getnext()
+    if next_elem is not None and next_elem.tag == qn("w:p"):
+        pPr = next_elem.find(qn("w:pPr"))
+        if pPr is None:
+            pPr = etree.Element(qn("w:pPr"))
+            next_elem.insert(0, pPr)
+        spacing = pPr.find(qn("w:spacing"))
+        if spacing is None:
+            spacing = etree.SubElement(pPr, qn("w:spacing"))
+        spacing.set(qn("w:before"), "40")
+        spacing.set(qn("w:after"), "40")
+        # Supprimer le saut de page si présent
+        pb = pPr.find(qn("w:pageBreakBefore"))
+        if pb is not None:
+            pPr.remove(pb)
+
+
+def _add_small_separator(tbl):
+    """Ajoute un petit paragraphe de séparation minimal après le tableau."""
+    sep = etree.Element(qn("w:p"))
+    pPr = etree.SubElement(sep, qn("w:pPr"))
+    spacing = etree.SubElement(pPr, qn("w:spacing"))
+    spacing.set(qn("w:before"), "60")
+    spacing.set(qn("w:after"), "60")
+    spacing.set(qn("w:line"), "240")
+    spacing.set(qn("w:lineRule"), "auto")
+    tbl._tbl.addnext(sep)
+    return sep
+
+
 def _fill_experiences_pro(doc, exps):
     exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
     if not exp_tables:
         return
 
-    # Ajouter des tableaux manquants en copiant le dernier
     body = doc.element.body
+
+    # Supprimer les espaces/sauts de page entre les tableaux existants du template
+    for tbl in exp_tables:
+        _remove_space_after_table(tbl)
+
+    # Ajouter des tableaux manquants en copiant le dernier
     while len(exp_tables) < len(exps):
         last_tbl = exp_tables[-1]
-        # Insérer un paragraphe vide + copie du tableau après le dernier tableau exp
+        # Petit séparateur entre tableaux
+        sep = _add_small_separator(last_tbl)
         new_tbl = copy.deepcopy(last_tbl._tbl)
-        last_tbl._tbl.addnext(new_tbl)
-        # Recharger la liste
+        sep.addnext(new_tbl)
         exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
+        # Supprimer l'espace après le nouveau tableau
+        _remove_space_after_table(exp_tables[-1])
 
     for i, exp in enumerate(exps):
         _fill_single_exp_pro(exp_tables[i], exp)
