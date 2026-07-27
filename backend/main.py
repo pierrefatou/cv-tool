@@ -431,7 +431,7 @@ def _fill_competences(tbl, data):
                 spacing = etree.SubElement(pPr, qn("w:spacing"))
             spacing.set(qn("w:line"), "300")
             spacing.set(qn("w:lineRule"), "auto")
-            spacing.set(qn("w:after"), "200")
+            spacing.set(qn("w:after"), "280")
         # ③ Écrire "Compétences Techniques :"
         if tech_title:
             _write_para_xml(tech_title, "Compétences Techniques :")
@@ -442,7 +442,7 @@ def _fill_competences(tbl, data):
             spacing = pPr.find(qn("w:spacing"))
             if spacing is None:
                 spacing = etree.SubElement(pPr, qn("w:spacing"))
-            spacing.set(qn("w:before"), "300")
+            spacing.set(qn("w:before"), "480")
          
         # Effacer les paras fantômes entre domaines et titre tech
         for p in paras[domain_start + 5:tech_title_idx]:
