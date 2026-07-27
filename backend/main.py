@@ -495,9 +495,7 @@ def _fill_experiences_pro(doc, exps):
         last_tbl = exp_tables[-1]
         # Insérer un paragraphe vide + copie du tableau après le dernier tableau exp
         new_tbl = copy.deepcopy(last_tbl._tbl)
-        sep = etree.Element(qn("w:p"))
         last_tbl._tbl.addnext(new_tbl)
-        new_tbl.addprevious(sep)
         # Recharger la liste
         exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
 
