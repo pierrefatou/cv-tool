@@ -434,7 +434,7 @@ def _fill_competences(tbl, data):
             spacing.set(qn("w:after"), "400")
 
         # ③ Écrire "Compétences Techniques :"
-       if tech_title:
+     if tech_title:
             _write_para_xml(tech_title, "Compétences Techniques :")
             pPr = tech_title._p.find(qn("w:pPr"))
             if pPr is None:
