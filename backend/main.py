@@ -479,12 +479,15 @@ def _remove_space_after_table(tbl):
         spacing = pPr.find(qn("w:spacing"))
         if spacing is None:
             spacing = etree.SubElement(pPr, qn("w:spacing"))
-        spacing.set(qn("w:before"), "40")
-        spacing.set(qn("w:after"), "40")
-        # Supprimer le saut de page si présent
+        spacing.set(qn("w:before"), "0")
+        spacing.set(qn("w:after"), "0")
+        spacing.set(qn("w:line"), "240")
+        spacing.set(qn("w:lineRule"), "auto")
         pb = pPr.find(qn("w:pageBreakBefore"))
         if pb is not None:
             pPr.remove(pb)
+        for r in list(next_elem.findall(qn("w:r"))):
+            next_elem.remove(r)
 
 
 def _add_small_separator(tbl):
