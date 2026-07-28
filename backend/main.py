@@ -115,7 +115,7 @@ Règles strictes :
 - Dates au format MM/YYYY ou YYYY
 - Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission commence par un NOM (jamais un verbe). Exemples : "Conception des APIs REST...", "Mise en place des pipelines CI/CD...", "Rédaction de la documentation technique...". 1 ligne max. Ne jamais écrire "Description mission"
 - Projets : TOUJOURS renseigner. Si une expérience contient plusieurs projets distincts, les lister tous dans le tableau "projets". Si absent du CV, déduire intelligemment depuis le poste, la société et les missions. Chaque projet : phrase courte et synthétique (max 1 ligne)
-- Compétences domaines : exactement 5, phrases courtes et percutantes (max 2 lignes), adaptées au profil
+- Compétences domaines : TOUJOURS exactement 5, obligatoirement. Extraire les 5 compétences les plus représentées et utilisées dans le CV. Phrases courtes et percutantes (max 2 lignes). Si le CV n'en mentionne pas assez explicitement, déduire depuis les expériences et missions les plus fréquentes.
 - Compétences techniques : exactement 5 catégories adaptées au profil du consultant
 - Expériences significatives : regrouper les postes identiques, lister toutes les sociétés séparées par des virgules, durée totale cumulée (ex: "3 ANS", "18 MOIS")
 - titre_poste et poste : TOUJOURS maximum 40 caractères espaces compris, sans spécialisation ni technologie. Exemples : "Chef de Projet MOA", "Développeur Backend", "Architecte Solution". Ne jamais inclure de "|" ou "/"
