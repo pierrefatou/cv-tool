@@ -741,12 +741,27 @@ def _remove_empty_paras_before(body, target_elem):
 
 
 def _remove_paras_before_first_exp(doc):
-    """Force un saut de page avant le rectangle 'Expériences professionnelles'."""
     body = doc.element.body
     para = _find_txbx_para(body, "professionnelles")
     print(f"[EXP] para trouvé: {para is not None}")
     if para is not None:
         _remove_empty_paras_before(body, para)
+        # Ajouter saut de page AVANT l'encart
+        _set_page_break_before(para)
+        # Supprimer les paragraphes vides APRÈS l'encart
+        children = list(body)
+        try:
+            idx = children.index(para)
+        except ValueError:
+            return
+        for child in children[idx + 1:]:
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if tag == 'tbl':
+                break
+            if tag == 'p':
+                text = "".join(t.text or "" for t in child.iter(qn("w:t"))).strip()
+                if not text:
+                    body.remove(child)
 
 # ─── Espacement avant Formations ──────────────────────────────────────────────
 
