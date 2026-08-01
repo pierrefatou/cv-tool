@@ -747,8 +747,6 @@ def _remove_paras_before_first_exp(doc):
     print(f"[EXP] para trouvé: {para is not None}")
     if para is not None:
         _remove_empty_paras_before(body, para)
-        _set_page_break_before(para)
-
 
 # ─── Espacement avant Formations ──────────────────────────────────────────────
 
