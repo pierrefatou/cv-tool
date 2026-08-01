@@ -748,7 +748,13 @@ def _remove_paras_before_first_exp(doc):
     print(f"[EXP] para trouvé: {para is not None}")
     if para is not None:
         _remove_empty_paras_before(body, para)
-        # Ajouter saut de page AVANT l'encart
+        # Supprimer pageBreak existant du template
+        pPr = para.find(qn("w:pPr"))
+        if pPr is not None:
+            pb = pPr.find(qn("w:pageBreakBefore"))
+            if pb is not None:
+                pPr.remove(pb)
+        # Ajouter UN SEUL saut de page
         _set_page_break_before(para)
         # Supprimer les paragraphes vides APRÈS l'encart
         children = list(body)
