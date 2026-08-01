@@ -548,6 +548,8 @@ def _fill_single_exp_pro(tbl, exp):
             cantSplit = trPr.find(qn("w:cantSplit"))
             if cantSplit is not None:
                 trPr.remove(cantSplit)
+            cs = etree.SubElement(trPr, qn("w:cantSplit"))
+            cs.set(qn("w:val"), "0")
 
         # Ligne 0 : dates | société
         row0 = tbl.rows[0]
