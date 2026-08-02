@@ -115,7 +115,7 @@ Règles strictes :
 - Dates au format MM/YYYY ou YYYY
 - Missions : extraire TOUTES les missions importantes du CV pour chaque expérience (jusqu'à 12 par expérience). Chaque mission commence par un NOM (jamais un verbe). Exemples : "Conception des APIs REST...", "Mise en place des pipelines CI/CD...", "Rédaction de la documentation technique...". 1 ligne max. Ne jamais écrire "Description mission"
 - Projets : TOUJOURS renseigner. Si une expérience contient plusieurs projets distincts, les lister tous dans le tableau "projets". Si absent du CV, déduire intelligemment depuis le poste, la société et les missions. Chaque projet : phrase courte et synthétique (max 1 ligne)
-- Compétences domaines : exactement 5, phrases courtes et percutantes (max 2 lignes), adaptées au profil
+- Compétences domaines : TOUJOURS exactement 5, obligatoirement. Extraire les 5 compétences les plus représentées et utilisées dans le CV. Phrases courtes et percutantes (max 2 lignes). Si le CV n'en mentionne pas assez explicitement, déduire depuis les expériences et missions les plus fréquentes.
 - Compétences techniques : exactement 5 catégories adaptées au profil du consultant
 - Expériences significatives : regrouper les postes identiques, lister toutes les sociétés séparées par des virgules, durée totale cumulée (ex: "3 ANS", "18 MOIS")
 - titre_poste et poste : TOUJOURS maximum 40 caractères espaces compris, sans spécialisation ni technologie. Exemples : "Chef de Projet MOA", "Développeur Backend", "Architecte Solution". Ne jamais inclure de "|" ou "/"
@@ -381,15 +381,20 @@ def _fill_competences(tbl, data):
         techniques = data.get("competences_techniques", [])
         print(f"[COMP] {len(paras)} paras, {len(domaines)} domaines, {len(techniques)} techniques")
 
-        # Trouver tous les éléments clés AVANT toute écriture (évite faux positifs sur contenu réel)
+        # Trouver tous les éléments clés AVANT toute écriture
         domain_title = next((p for p in paras if "Domaines" in get_text_in_element(p._p)), None)
-        domain_start = paras.index(domain_title) + 1 if domain_title else 0
-        domain_paras = paras[domain_start:domain_start + 5]
-
         tech_title = next((p for p in paras
                            if "techniques" in get_text_in_element(p._p).lower()), None)
         tech_title_idx = paras.index(tech_title) if tech_title else len(paras)
-        tech_paras_found = paras[tech_title_idx + 1:tech_title_idx + 6] if tech_title_idx >= 0 else []
+
+        # Cibler uniquement les paragraphes avec puces (bullet) pour les domaines
+        domain_paras = [p for p in paras
+                        if p._p.find(".//" + qn("w:numPr")) is not None
+                        and paras.index(p) < tech_title_idx]
+
+        # Paragraphes techniques avec puces après le titre tech
+        tech_paras_found = [p for p in paras[tech_title_idx + 1:]
+                            if p._p.find(".//" + qn("w:numPr")) is not None]
 
         print(f"[COMP] domain_title idx={paras.index(domain_title) if domain_title else None}")
         print(f"[COMP] domain_paras: {[get_text_in_element(p._p) for p in domain_paras]}")
@@ -421,29 +426,12 @@ def _fill_competences(tbl, data):
                     if el is None:
                         el = etree.SubElement(rPr, tag)
                     el.set(qn("w:val"), "22")
-            # Interligne : 1.25x
-            pPr = para._p.find(qn("w:pPr"))
-            if pPr is None:
-                pPr = etree.Element(qn("w:pPr"))
-                para._p.insert(0, pPr)
-            spacing = pPr.find(qn("w:spacing"))
-            if spacing is None:
-                spacing = etree.SubElement(pPr, qn("w:spacing"))
-            spacing.set(qn("w:line"), "300")
-            spacing.set(qn("w:lineRule"), "auto")
-            spacing.set(qn("w:after"), "400")
+
 
         # ③ Écrire "Compétences Techniques :"
         if tech_title:
             _write_para_xml(tech_title, "Compétences Techniques :")
-            pPr = tech_title._p.find(qn("w:pPr"))
-            if pPr is None:
-                pPr = etree.Element(qn("w:pPr"))
-                tech_title._p.insert(0, pPr)
-            spacing = pPr.find(qn("w:spacing"))
-            if spacing is None:
-                spacing = etree.SubElement(pPr, qn("w:spacing"))
-            spacing.set(qn("w:before"), "600")
+
          
         # Effacer les paras fantômes entre domaines et titre tech
         for p in paras[domain_start + 5:tech_title_idx]:
@@ -484,22 +472,63 @@ def _fill_competences(tbl, data):
 
 # ─── Expériences professionnelles ─────────────────────────────────────────────
 
+def _remove_space_after_table(tbl):
+    """Supprime l'espacement après un tableau en modifiant le paragraphe qui le suit."""
+    tbl_elem = tbl._tbl
+    next_elem = tbl_elem.getnext()
+    if next_elem is not None and next_elem.tag == qn("w:p"):
+        pPr = next_elem.find(qn("w:pPr"))
+        if pPr is None:
+            pPr = etree.Element(qn("w:pPr"))
+            next_elem.insert(0, pPr)
+        spacing = pPr.find(qn("w:spacing"))
+        if spacing is None:
+            spacing = etree.SubElement(pPr, qn("w:spacing"))
+        spacing.set(qn("w:before"), "0")
+        spacing.set(qn("w:after"), "0")
+        spacing.set(qn("w:line"), "240")
+        spacing.set(qn("w:lineRule"), "auto")
+        pb = pPr.find(qn("w:pageBreakBefore"))
+        if pb is not None:
+            pPr.remove(pb)
+        for r in list(next_elem.findall(qn("w:r"))):
+            next_elem.remove(r)
+
+
+def _add_small_separator(tbl):
+    """Ajoute un petit paragraphe de séparation minimal après le tableau."""
+    sep = etree.Element(qn("w:p"))
+    pPr = etree.SubElement(sep, qn("w:pPr"))
+    spacing = etree.SubElement(pPr, qn("w:spacing"))
+    spacing.set(qn("w:before"), "0")
+    spacing.set(qn("w:after"), "0")
+    spacing.set(qn("w:line"), "240")
+    spacing.set(qn("w:lineRule"), "auto")
+    tbl._tbl.addnext(sep)
+    return sep
+
+
 def _fill_experiences_pro(doc, exps):
     exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
     if not exp_tables:
         return
 
-    # Ajouter des tableaux manquants en copiant le dernier
     body = doc.element.body
+
+    # Supprimer les espaces/sauts de page entre les tableaux existants du template
+    for tbl in exp_tables:
+        _remove_space_after_table(tbl)
+
+    # Ajouter des tableaux manquants en copiant le dernier
     while len(exp_tables) < len(exps):
         last_tbl = exp_tables[-1]
-        # Insérer un paragraphe vide + copie du tableau après le dernier tableau exp
+        # Petit séparateur entre tableaux
+        sep = _add_small_separator(last_tbl)
         new_tbl = copy.deepcopy(last_tbl._tbl)
-        sep = etree.Element(qn("w:p"))
-        last_tbl._tbl.addnext(new_tbl)
-        new_tbl.addprevious(sep)
-        # Recharger la liste
+        sep.addnext(new_tbl)
         exp_tables = [t for t in doc.tables if _is_experience_pro_table(t)]
+        # Supprimer l'espace après le nouveau tableau
+        _remove_space_after_table(exp_tables[-1])
 
     for i, exp in enumerate(exps):
         _fill_single_exp_pro(exp_tables[i], exp)
@@ -524,6 +553,8 @@ def _fill_single_exp_pro(tbl, exp):
             cantSplit = trPr.find(qn("w:cantSplit"))
             if cantSplit is not None:
                 trPr.remove(cantSplit)
+            cs = etree.SubElement(trPr, qn("w:cantSplit"))
+            cs.set(qn("w:val"), "0")
 
         # Ligne 0 : dates | société
         row0 = tbl.rows[0]
@@ -717,50 +748,14 @@ def _remove_empty_paras_before(body, target_elem):
 
 
 def _remove_paras_before_first_exp(doc):
-    """Force un saut de page avant le rectangle 'Expériences professionnelles'."""
-    body = doc.element.body
-    para = _find_txbx_para(body, "professionnelles")
-    print(f"[EXP] para trouvé: {para is not None}")
-    if para is not None:
-        _remove_empty_paras_before(body, para)
-        _set_page_break_before(para)
-
+    """Ne rien faire - le template gère déjà le saut de page."""
+    pass
 
 # ─── Espacement avant Formations ──────────────────────────────────────────────
 
 def _fix_spacing_before_formations(doc):
-    """Force un saut de page avant le rectangle 'Formations' et colle le tableau dessous."""
-    body = doc.element.body
-
-    formations_para = _find_txbx_para(body, "Formations")
-    print(f"[FORM_SPACE] para trouvé: {formations_para is not None}")
-    if formations_para is not None:
-        _remove_empty_paras_before(body, formations_para)
-        _set_page_break_before(formations_para)
-
-    # Laisser exactement 1 paragraphe vide entre le rectangle et le tableau formations
-    form_tbl = next((t for t in doc.tables if _is_formation_table(t)), None)
-    if not form_tbl:
-        return
-    try:
-        tbl_idx = list(body).index(form_tbl._tbl)
-    except ValueError:
-        return
-    children = list(body)
-    i = tbl_idx - 1
-    while i >= 0 and children[i].tag == qn("w:p"):
-        text = "".join(t.text or "" for t in children[i].iter(qn("w:t")))
-        if not text.strip() and children[i] is not formations_para:
-            body.remove(children[i])
-        else:
-            break
-        i -= 1
-    # Insérer exactement 1 paragraphe vide comme saut de ligne visuel
-    tbl_idx_fresh = list(body).index(form_tbl._tbl)
-    body.insert(tbl_idx_fresh, etree.Element(qn("w:p")))
-
-
-# ─── Formations ───────────────────────────────────────────────────────────────
+    """Ne rien faire - le template gère déjà les espacements."""
+    pass
 
 def _fill_formations(tbl, formations):
     # Ajouter des lignes si le CV en a plus que le template
