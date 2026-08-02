@@ -381,15 +381,20 @@ def _fill_competences(tbl, data):
         techniques = data.get("competences_techniques", [])
         print(f"[COMP] {len(paras)} paras, {len(domaines)} domaines, {len(techniques)} techniques")
 
-        # Trouver tous les éléments clés AVANT toute écriture (évite faux positifs sur contenu réel)
+        # Trouver tous les éléments clés AVANT toute écriture
         domain_title = next((p for p in paras if "Domaines" in get_text_in_element(p._p)), None)
-        domain_start = paras.index(domain_title) + 1 if domain_title else 0
-        domain_paras = paras[domain_start:domain_start + 5]
-
         tech_title = next((p for p in paras
                            if "techniques" in get_text_in_element(p._p).lower()), None)
         tech_title_idx = paras.index(tech_title) if tech_title else len(paras)
-        tech_paras_found = paras[tech_title_idx + 1:tech_title_idx + 6] if tech_title_idx >= 0 else []
+
+        # Cibler uniquement les paragraphes avec puces (bullet) pour les domaines
+        domain_paras = [p for p in paras
+                        if p._p.find(".//" + qn("w:numPr")) is not None
+                        and paras.index(p) < tech_title_idx]
+
+        # Paragraphes techniques avec puces après le titre tech
+        tech_paras_found = [p for p in paras[tech_title_idx + 1:]
+                            if p._p.find(".//" + qn("w:numPr")) is not None]
 
         print(f"[COMP] domain_title idx={paras.index(domain_title) if domain_title else None}")
         print(f"[COMP] domain_paras: {[get_text_in_element(p._p) for p in domain_paras]}")
