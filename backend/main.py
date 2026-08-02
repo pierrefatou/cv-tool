@@ -743,69 +743,14 @@ def _remove_empty_paras_before(body, target_elem):
 
 
 def _remove_paras_before_first_exp(doc):
-    body = doc.element.body
-    para = _find_txbx_para(body, "professionnelles")
-    print(f"[EXP] para trouvé: {para is not None}")
-    if para is not None:
-        _remove_empty_paras_before(body, para)
-        # Supprimer pageBreak existant du template
-        pPr = para.find(qn("w:pPr"))
-        if pPr is not None:
-            pb = pPr.find(qn("w:pageBreakBefore"))
-            if pb is not None:
-                pPr.remove(pb)
-        # Ajouter UN SEUL saut de page
-        _set_page_break_before(para)
-        # Supprimer les paragraphes vides APRÈS l'encart
-        children = list(body)
-        try:
-            idx = children.index(para)
-        except ValueError:
-            return
-        for child in children[idx + 1:]:
-            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-            if tag == 'tbl':
-                break
-            if tag == 'p':
-                text = "".join(t.text or "" for t in child.iter(qn("w:t"))).strip()
-                if not text:
-                    body.remove(child)
+    """Ne rien faire - le template gère déjà le saut de page."""
+    pass
 
 # ─── Espacement avant Formations ──────────────────────────────────────────────
 
 def _fix_spacing_before_formations(doc):
-    """Force un saut de page avant le rectangle 'Formations' et colle le tableau dessous."""
-    body = doc.element.body
-
-    formations_para = _find_txbx_para(body, "Formations")
-    print(f"[FORM_SPACE] para trouvé: {formations_para is not None}")
-    if formations_para is not None:
-        _remove_empty_paras_before(body, formations_para)
-        _set_page_break_before(formations_para)
-
-    # Laisser exactement 1 paragraphe vide entre le rectangle et le tableau formations
-    form_tbl = next((t for t in doc.tables if _is_formation_table(t)), None)
-    if not form_tbl:
-        return
-    try:
-        tbl_idx = list(body).index(form_tbl._tbl)
-    except ValueError:
-        return
-    children = list(body)
-    i = tbl_idx - 1
-    while i >= 0 and children[i].tag == qn("w:p"):
-        text = "".join(t.text or "" for t in children[i].iter(qn("w:t")))
-        if not text.strip() and children[i] is not formations_para:
-            body.remove(children[i])
-        else:
-            break
-        i -= 1
-    # Insérer exactement 1 paragraphe vide comme saut de ligne visuel
-    tbl_idx_fresh = list(body).index(form_tbl._tbl)
-    body.insert(tbl_idx_fresh, etree.Element(qn("w:p")))
-
-
-# ─── Formations ───────────────────────────────────────────────────────────────
+    """Ne rien faire - le template gère déjà les espacements."""
+    pass
 
 def _fill_formations(tbl, formations):
     # Ajouter des lignes si le CV en a plus que le template
