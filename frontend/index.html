@@ -349,6 +349,79 @@
     }
     .counter-bar strong { color: #005491; }
 
+    /* Preview overlay */
+    .preview-overlay {
+      position: fixed; inset: 0;
+      background: rgba(14,40,65,0.6);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 1rem;
+      backdrop-filter: blur(3px);
+    }
+    .preview-overlay.open { display: flex; }
+    .preview-card {
+      background: white; border-radius: 16px;
+      width: 100%; max-width: 860px; height: 90vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    .preview-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid #e8eef4;
+      flex-shrink: 0;
+    }
+    .preview-header h3 { font-size: 0.95rem; font-weight: 700; color: #0E2841; }
+    .preview-header .fname { font-size: 0.78rem; color: #7a8fa6; margin-top: 2px; }
+    .preview-iframe { flex: 1; border: none; width: 100%; }
+    .preview-no-pdf {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; color: #7a8fa6; font-size: 0.9rem;
+    }
+    .preview-actions {
+      display: flex; gap: 10px; padding: 14px 20px;
+      border-top: 1px solid #e8eef4; flex-shrink: 0;
+    }
+    .btn-preview-dl {
+      flex: 1; padding: 0.75rem; background: #005491; color: white;
+      border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.2s;
+    }
+    .btn-preview-dl:hover { background: #004070; }
+    .btn-preview-fix {
+      flex: 1; padding: 0.75rem; background: #f0f4f8; color: #0E2841;
+      border: 1px solid #c5d8e8; border-radius: 10px; font-size: 0.9rem;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .btn-preview-fix:hover { background: #e8eef4; }
+    .btn-preview-close {
+      padding: 0.75rem 1.2rem; background: none; color: #7a8fa6;
+      border: 1px solid #c5d8e8; border-radius: 10px; font-size: 0.9rem;
+      cursor: pointer; font-family: inherit;
+    }
+
+    /* Correction block */
+    .correction-block {
+      padding: 14px 20px; border-top: 1px solid #e8eef4;
+      background: #f8fbff; display: none; flex-direction: column; gap: 10px;
+      flex-shrink: 0;
+    }
+    .correction-block.open { display: flex; }
+    .correction-block label { font-size: 0.82rem; font-weight: 700; color: #0E2841; }
+    .correction-block textarea {
+      width: 100%; border: 1.5px solid #c5d8e8; border-radius: 10px;
+      padding: 0.7rem; font-size: 0.88rem; font-family: inherit;
+      resize: vertical; min-height: 80px; outline: none;
+    }
+    .correction-block textarea:focus { border-color: #005491; }
+    .btn-regen {
+      padding: 0.75rem; background: #005491; color: white;
+      border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .btn-regen:disabled { background: #94afc8; cursor: not-allowed; }
+    .correction-spinner { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #005491; display: none; }
+
     /* Welcome popup */
     .welcome-overlay {
       position: fixed; inset: 0;
@@ -457,6 +530,40 @@
         </div>
       </div>
       <button class="btn-close-welcome" onclick="closeWelcome()">J'ai compris, accéder à l'outil →</button>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div class="preview-overlay" id="previewOverlay">
+    <div class="preview-card">
+      <div class="preview-header">
+        <div>
+          <h3>👁 Aperçu de la fiche générée</h3>
+          <div class="fname" id="previewFilename"></div>
+        </div>
+        <button class="btn-preview-close" onclick="closePreview()">✕ Fermer</button>
+      </div>
+
+      <iframe class="preview-iframe" id="previewIframe" src="" style="display:none"></iframe>
+      <div class="preview-no-pdf" id="previewNoPdf" style="display:none">
+        <div style="font-size:2rem">📄</div>
+        <div>Aperçu PDF non disponible</div>
+        <div style="font-size:0.78rem">Téléchargez la fiche pour la visualiser</div>
+      </div>
+
+      <div class="correction-block" id="correctionBlock">
+        <label>✏️ Décrivez les corrections souhaitées :</label>
+        <textarea id="correctionText" placeholder="Ex: Met plus en avant les compétences en gestion de projet, reformule les missions de façon plus percutante..."></textarea>
+        <div class="correction-spinner" id="corrSpinner">
+          <div class="spinner"></div><span>Régénération en cours...</span>
+        </div>
+        <button class="btn-regen" id="btnRegen" onclick="applyCorrection()">🔄 Régénérer la fiche</button>
+      </div>
+
+      <div class="preview-actions" id="previewActions">
+        <button class="btn-preview-dl" onclick="downloadPreview()">⬇️ Télécharger</button>
+        <button class="btn-preview-fix" id="btnFix" onclick="showCorrection()">✏️ Corriger</button>
+      </div>
     </div>
   </div>
 
@@ -752,6 +859,9 @@
       `;
     }
 
+    let currentPreviewId = null;
+    let currentFilename = null;
+
     async function generateCV() {
       if (!selectedFile) return;
       btnGen.disabled = true;
@@ -765,7 +875,7 @@
       formData.append("agence", document.getElementById("agenceSelect").value);
 
       try {
-        const res = await fetch(`${API_URL}/generate`, {
+        const res = await fetch(`${API_URL}/generate-preview`, {
           method: "POST", body: formData,
           headers: {"Authorization": "Bearer " + token}
         });
@@ -780,36 +890,118 @@
           return;
         }
 
-        let filename = "FC_Infotel.docx";
-        const cd = res.headers.get("content-disposition");
-        if (cd) {
-          const utf8Match = cd.match(/filename\*=utf-8''([^;]+)/i);
-          if (utf8Match) filename = decodeURIComponent(utf8Match[1]);
-          else {
-            const m = cd.match(/filename="?([^";\n]+)"?/i);
-            if (m) filename = m[1];
-          }
-        }
-
-        const blob = await res.blob();
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement("a");
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        const result = await res.json();
+        currentPreviewId = result.preview_id;
+        currentFilename = result.filename;
 
         stopProgress();
         showProgress(LOADING_MESSAGES[LOADING_MESSAGES.length - 1], 100, Math.floor((Date.now() - progressStartTime) / 1000));
         setStep(5);
-        setTimeout(() => { showSuccess(filename); }, 400);
+        setTimeout(() => {
+          showSuccess(result.filename);
+          openPreview(result.preview_id, result.filename, result.pdf_available);
+        }, 400);
         updateCounter();
       } catch (e) {
         stopProgress();
-        showError("Impossible de contacter le serveur. Vérifiez que le backend est lancé.");
+        showError("Impossible de contacter le serveur.");
         setStep(2);
       }
       btnGen.disabled = false;
+    }
+
+    function openPreview(previewId, filename, pdfAvailable) {
+      document.getElementById("previewFilename").textContent = filename;
+      document.getElementById("correctionBlock").classList.remove("open");
+      document.getElementById("correctionText").value = "";
+      document.getElementById("btnFix").style.display = "inline-block";
+      document.getElementById("btnFix").disabled = false;
+
+      if (pdfAvailable) {
+        document.getElementById("previewIframe").src = `${API_URL}/preview/${previewId}/pdf?t=${Date.now()}`;
+        document.getElementById("previewIframe").style.display = "block";
+        document.getElementById("previewNoPdf").style.display = "none";
+      } else {
+        document.getElementById("previewIframe").style.display = "none";
+        document.getElementById("previewNoPdf").style.display = "flex";
+      }
+      document.getElementById("previewOverlay").classList.add("open");
+    }
+
+    function closePreview() {
+      document.getElementById("previewOverlay").classList.remove("open");
+      document.getElementById("previewIframe").src = "";
+    }
+
+    async function downloadPreview() {
+      if (!currentPreviewId) return;
+      const a = document.createElement("a");
+      a.href = `${API_URL}/preview/${currentPreviewId}/download`;
+      a.setAttribute("download", currentFilename || "FC_INFOTEL.docx");
+      // Ajouter le token dans l'URL via fetch
+      const res = await fetch(`${API_URL}/preview/${currentPreviewId}/download`, {
+        headers: {"Authorization": "Bearer " + token}
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = currentFilename || "FC_INFOTEL.docx";
+      document.body.appendChild(link); link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      closePreview();
+    }
+
+    function showCorrection() {
+      document.getElementById("correctionBlock").classList.add("open");
+      document.getElementById("btnFix").style.display = "none";
+      document.getElementById("correctionText").focus();
+    }
+
+    async function applyCorrection() {
+      const correction = document.getElementById("correctionText").value.trim();
+      if (!correction) return;
+
+      const btnRegen = document.getElementById("btnRegen");
+      const spinner = document.getElementById("corrSpinner");
+      btnRegen.disabled = true;
+      spinner.style.display = "flex";
+
+      const formData = new FormData();
+      formData.append("correction", correction);
+
+      try {
+        const res = await fetch(`${API_URL}/preview/${currentPreviewId}/correct`, {
+          method: "POST", body: formData,
+          headers: {"Authorization": "Bearer " + token}
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          alert(err.detail || "Erreur lors de la correction");
+          return;
+        }
+
+        const result = await res.json();
+        currentPreviewId = result.preview_id;
+        currentFilename = result.filename;
+
+        // Afficher la version corrigée sans bouton corriger
+        document.getElementById("previewFilename").textContent = result.filename + " (corrigé)";
+        document.getElementById("correctionBlock").classList.remove("open");
+        document.getElementById("btnFix").style.display = "none"; // Plus de correction possible
+
+        if (result.pdf_available) {
+          document.getElementById("previewIframe").src = `${API_URL}/preview/${result.preview_id}/pdf?t=${Date.now()}`;
+          document.getElementById("previewIframe").style.display = "block";
+          document.getElementById("previewNoPdf").style.display = "none";
+        }
+      } catch(e) {
+        alert("Erreur lors de la correction");
+      } finally {
+        btnRegen.disabled = false;
+        spinner.style.display = "none";
+      }
     }
 
     function showLoading(msg) {
