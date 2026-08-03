@@ -6,7 +6,6 @@ import traceback
 import copy
 import shutil
 import uuid
-import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env", override=True)
@@ -955,16 +954,17 @@ async def generate_cv(
         filename=fname)
 
 
-# ─── Preview endpoints ────────────────────────────────────────────────────────
+# ─── Correction ───────────────────────────────────────────────────────────────
 
-@app.post("/generate-preview")
-async def generate_preview(
+@app.post("/generate-and-store")
+async def generate_and_store(
     file: UploadFile = File(...),
     job_description: str = Form(default=""),
     influence: int = Form(default=0),
     agence: str = Form(default="niort"),
     user=Depends(get_current_user),
 ):
+    """Génère la fiche, la télécharge ET la stocke pour correction éventuelle."""
     content_bytes = await file.read()
     filename_lower = file.filename.lower()
     if filename_lower.endswith(".pdf"):
@@ -986,61 +986,38 @@ async def generate_preview(
     except Exception as e:
         raise HTTPException(500, f"Erreur génération DOCX: {e}")
 
-    preview_id = str(uuid.uuid4())
     prenom = data.get("prenom", "").strip().upper()
     titre  = data.get("poste", "Consultant").strip().title()
     fname  = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
 
-    stored_docx = TEMP_DIR / f"{preview_id}.docx"
-    shutil.copy2(docx_path, stored_docx)
+    # Stocker pour correction
+    preview_id = str(uuid.uuid4())
+    stored = TEMP_DIR / f"{preview_id}.docx"
+    shutil.copy2(docx_path, stored)
     (TEMP_DIR / f"{preview_id}.meta").write_text(fname)
     (TEMP_DIR / f"{preview_id}.agence").write_text(agence)
 
-    try:
-        from docx2pdf import convert
-        pdf_path = TEMP_DIR / f"{preview_id}.pdf"
-        convert(str(stored_docx), str(pdf_path))
-        pdf_exists = pdf_path.exists()
-    except Exception as e:
-        print(f"[PREVIEW] Erreur PDF: {e}")
-        pdf_exists = False
-
     log_generation(user["username"], fname)
-    return {"preview_id": preview_id, "filename": fname, "pdf_available": pdf_exists}
 
-
-@app.get("/preview/{preview_id}/pdf")
-async def get_preview_pdf(preview_id: str, user=Depends(get_current_user)):
-    pdf_path = TEMP_DIR / f"{preview_id}.pdf"
-    if not pdf_path.exists():
-        raise HTTPException(404, "Aperçu non disponible.")
-    return FileResponse(str(pdf_path), media_type="application/pdf")
-
-
-@app.get("/preview/{preview_id}/download")
-async def download_preview(preview_id: str, user=Depends(get_current_user)):
-    docx_path = TEMP_DIR / f"{preview_id}.docx"
-    if not docx_path.exists():
-        raise HTTPException(404, "Fichier non trouvé.")
-    meta = TEMP_DIR / f"{preview_id}.meta"
-    fname = meta.read_text() if meta.exists() else "FC_INFOTEL.docx"
-    return FileResponse(str(docx_path),
+    return FileResponse(docx_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=fname)
+        filename=fname,
+        headers={"X-Preview-Id": preview_id, "X-Filename": fname,
+                 "Access-Control-Expose-Headers": "X-Preview-Id, X-Filename"})
 
 
-@app.post("/preview/{preview_id}/correct")
-async def correct_preview(
+@app.post("/correct/{preview_id}")
+async def correct_fiche(
     preview_id: str,
     correction: str = Form(...),
     user=Depends(get_current_user),
 ):
+    """Applique une correction IA et retourne la fiche corrigée."""
     docx_path = TEMP_DIR / f"{preview_id}.docx"
     if not docx_path.exists():
-        raise HTTPException(404, "Fiche non trouvée.")
+        raise HTTPException(404, "Fiche originale non trouvée (expirée ?).")
     text = extract_text_from_docx(docx_path.read_bytes())
-    agence_path = TEMP_DIR / f"{preview_id}.agence"
-    agence = agence_path.read_text() if agence_path.exists() else "niort"
+    agence = (TEMP_DIR / f"{preview_id}.agence").read_text() if (TEMP_DIR / f"{preview_id}.agence").exists() else "niort"
 
     system_correction = SYSTEM_PROMPT + f"""
 
@@ -1063,29 +1040,19 @@ Applique cette correction en priorité tout en conservant les informations exist
         raise HTTPException(500, f"Erreur correction IA: {e}")
 
     try:
-        new_docx_path = build_docx(data, agence=agence)
+        new_path = build_docx(data, agence=agence)
     except Exception as e:
         raise HTTPException(500, f"Erreur génération DOCX corrigé: {e}")
 
-    new_id = str(uuid.uuid4())
     prenom = data.get("prenom", "").strip().upper()
     titre  = data.get("poste", "Consultant").strip().title()
     fname  = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
 
-    new_docx = TEMP_DIR / f"{new_id}.docx"
-    shutil.copy2(new_docx_path, new_docx)
-    (TEMP_DIR / f"{new_id}.meta").write_text(fname)
+    log_generation(user["username"], fname + " (corrigé)")
 
-    try:
-        subprocess.run(
-            ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(TEMP_DIR), str(new_docx)],
-            timeout=60, capture_output=True
-        )
-        pdf_exists = (TEMP_DIR / f"{new_id}.pdf").exists()
-    except Exception:
-        pdf_exists = False
-
-    return {"preview_id": new_id, "filename": fname, "pdf_available": pdf_exists, "corrected": True}
+    return FileResponse(new_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=fname)
 
 
 @app.get("/health")
