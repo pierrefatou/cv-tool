@@ -349,78 +349,31 @@
     }
     .counter-bar strong { color: #005491; }
 
-    /* Preview overlay */
-    .preview-overlay {
-      position: fixed; inset: 0;
-      background: rgba(14,40,65,0.6);
-      display: none; align-items: center; justify-content: center;
-      z-index: 200; padding: 1rem;
-      backdrop-filter: blur(3px);
-    }
-    .preview-overlay.open { display: flex; }
-    .preview-card {
-      background: white; border-radius: 16px;
-      width: 100%; max-width: 860px; height: 90vh;
-      display: flex; flex-direction: column;
-      box-shadow: 0 8px 48px rgba(0,0,0,0.2);
-      overflow: hidden;
-    }
-    .preview-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 20px; border-bottom: 1px solid #e8eef4;
-      flex-shrink: 0;
-    }
-    .preview-header h3 { font-size: 0.95rem; font-weight: 700; color: #0E2841; }
-    .preview-header .fname { font-size: 0.78rem; color: #7a8fa6; margin-top: 2px; }
-    .preview-iframe { flex: 1; border: none; width: 100%; }
-    .preview-no-pdf {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 8px; color: #7a8fa6; font-size: 0.9rem;
-    }
-    .preview-actions {
-      display: flex; gap: 10px; padding: 14px 20px;
-      border-top: 1px solid #e8eef4; flex-shrink: 0;
-    }
-    .btn-preview-dl {
-      flex: 1; padding: 0.75rem; background: #005491; color: white;
-      border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: background 0.2s;
-    }
-    .btn-preview-dl:hover { background: #004070; }
-    .btn-preview-fix {
-      flex: 1; padding: 0.75rem; background: #f0f4f8; color: #0E2841;
-      border: 1px solid #c5d8e8; border-radius: 10px; font-size: 0.9rem;
-      font-weight: 600; cursor: pointer; font-family: inherit;
-      transition: all 0.2s;
-    }
-    .btn-preview-fix:hover { background: #e8eef4; }
-    .btn-preview-close {
-      padding: 0.75rem 1.2rem; background: none; color: #7a8fa6;
-      border: 1px solid #c5d8e8; border-radius: 10px; font-size: 0.9rem;
-      cursor: pointer; font-family: inherit;
-    }
+    .preview-block { display:none; margin-top:12px; border:0.5px solid var(--border,#c5d8e8); border-radius:12px; overflow:hidden; background:var(--surface-2,#fff); }
+    .preview-block.open { display:block; }
+    .preview-bar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:0.5px solid var(--border,#c5d8e8); background:var(--surface-1,#f8fbff); }
+    .preview-bar-title { font-size:12px; font-weight:500; color:#0E2841; display:flex; align-items:center; gap:6px; }
+    .btn-close-preview { background:none; border:none; cursor:pointer; font-size:18px; color:#7a8fa6; padding:0; line-height:1; }
+    .preview-frame { width:100%; height:420px; border:none; display:block; background:#f0f4f8; }
+    .preview-no-pdf { height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#7a8fa6; font-size:13px; }
 
-    /* Correction block */
-    .correction-block {
-      padding: 14px 20px; border-top: 1px solid #e8eef4;
-      background: #f8fbff; display: none; flex-direction: column; gap: 10px;
-      flex-shrink: 0;
-    }
-    .correction-block.open { display: flex; }
-    .correction-block label { font-size: 0.82rem; font-weight: 700; color: #0E2841; }
-    .correction-block textarea {
-      width: 100%; border: 1.5px solid #c5d8e8; border-radius: 10px;
-      padding: 0.7rem; font-size: 0.88rem; font-family: inherit;
-      resize: vertical; min-height: 80px; outline: none;
-    }
-    .correction-block textarea:focus { border-color: #005491; }
-    .btn-regen {
-      padding: 0.75rem; background: #005491; color: white;
-      border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 600;
-      cursor: pointer; font-family: inherit;
-    }
-    .btn-regen:disabled { background: #94afc8; cursor: not-allowed; }
-    .correction-spinner { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #005491; display: none; }
+    .result-block { display:none; margin-top:12px; background:#f0fdf4; border:0.5px solid #bbf0c8; border-radius:12px; padding:16px; }
+    .result-block.open { display:block; }
+    .result-filename { font-size:13px; font-weight:500; color:#166534; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+    .result-actions { display:flex; gap:8px; align-items:center; }
+    .btn-dl { flex:1; padding:9px; background:#005491; color:white; border:none; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font-family:inherit; }
+    .btn-fix { flex:1; padding:9px; background:#f0f4f8; color:#0E2841; border:0.5px solid #c5d8e8; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font-family:inherit; }
+    .btn-eye { width:38px; height:38px; flex-shrink:0; background:#f0f4f8; color:#4a6278; border:0.5px solid #c5d8e8; border-radius:8px; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; font-family:inherit; }
+
+    .correction-block { display:none; margin-top:12px; background:#eef6ff; border:0.5px solid #b0cce8; border-radius:12px; padding:14px; }
+    .correction-block.open { display:block; }
+    .correction-block label { display:block; font-size:12px; font-weight:500; color:#0E2841; margin-bottom:8px; }
+    .correction-block textarea { width:100%; border:1.5px solid #b0cce8; border-radius:8px; padding:9px; font-size:13px; font-family:inherit; min-height:76px; resize:vertical; outline:none; background:white; box-sizing:border-box; }
+    .correction-block textarea:focus { border-color:#005491; }
+    .btn-regen { width:100%; margin-top:8px; padding:9px; background:#005491; color:white; border:none; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; gap:6px; }
+    .btn-regen:disabled { background:#94afc8; cursor:not-allowed; }
+    .corr-spinner { display:none; align-items:center; gap:8px; font-size:13px; color:#005491; margin-top:8px; }
+    .corr-spinner.show { display:flex; }
 
     /* Welcome popup */
     .welcome-overlay {
@@ -533,40 +486,6 @@
     </div>
   </div>
 
-  <!-- Preview Modal -->
-  <div class="preview-overlay" id="previewOverlay">
-    <div class="preview-card">
-      <div class="preview-header">
-        <div>
-          <h3>👁 Aperçu de la fiche générée</h3>
-          <div class="fname" id="previewFilename"></div>
-        </div>
-        <button class="btn-preview-close" onclick="closePreview()">✕ Fermer</button>
-      </div>
-
-      <iframe class="preview-iframe" id="previewIframe" src="" style="display:none"></iframe>
-      <div class="preview-no-pdf" id="previewNoPdf" style="display:none">
-        <div style="font-size:2rem">📄</div>
-        <div>Aperçu PDF non disponible</div>
-        <div style="font-size:0.78rem">Téléchargez la fiche pour la visualiser</div>
-      </div>
-
-      <div class="correction-block" id="correctionBlock">
-        <label>✏️ Décrivez les corrections souhaitées :</label>
-        <textarea id="correctionText" placeholder="Ex: Met plus en avant les compétences en gestion de projet, reformule les missions de façon plus percutante..."></textarea>
-        <div class="correction-spinner" id="corrSpinner">
-          <div class="spinner"></div><span>Régénération en cours...</span>
-        </div>
-        <button class="btn-regen" id="btnRegen" onclick="applyCorrection()">🔄 Régénérer la fiche</button>
-      </div>
-
-      <div class="preview-actions" id="previewActions">
-        <button class="btn-preview-dl" onclick="downloadPreview()">⬇️ Télécharger</button>
-        <button class="btn-preview-fix" id="btnFix" onclick="showCorrection()">✏️ Corriger</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Main App -->
   <div id="main-app" style="display:none; flex-direction:column; align-items:center; width:100%">
 
@@ -653,6 +572,38 @@
     </button>
 
     <div class="status-box" id="statusBox"></div>
+
+    <div class="result-block" id="resultBlock">
+      <div class="result-filename" id="resultFilename">
+        <i class="ti ti-check" aria-hidden="true"></i>
+        <span id="resultFilenameText"></span>
+      </div>
+      <div class="result-actions">
+        <button class="btn-dl" onclick="downloadResult()"><i class="ti ti-download" aria-hidden="true"></i> Télécharger</button>
+        <button class="btn-fix" id="btnFix" onclick="showCorrection()"><i class="ti ti-edit" aria-hidden="true"></i> Corriger</button>
+        <button class="btn-eye" aria-label="Visualiser" onclick="togglePreview()"><i class="ti ti-eye" aria-hidden="true"></i></button>
+      </div>
+    </div>
+
+    <div class="preview-block" id="previewBlock">
+      <div class="preview-bar">
+        <div class="preview-bar-title"><i class="ti ti-eye" aria-hidden="true"></i> <span id="previewTitle">Aperçu</span></div>
+        <button class="btn-close-preview" onclick="togglePreview()" aria-label="Fermer"><i class="ti ti-x" aria-hidden="true"></i></button>
+      </div>
+      <iframe class="preview-frame" id="previewFrame" src="" style="display:none"></iframe>
+      <div class="preview-no-pdf" id="previewNoPdf" style="display:none">
+        <i class="ti ti-file-type-pdf" style="font-size:36px; color:#c5d8e8;" aria-hidden="true"></i>
+        <div>Aperçu PDF non disponible</div>
+        <div style="font-size:11px;">Téléchargez la fiche pour la visualiser dans Word</div>
+      </div>
+    </div>
+
+    <div class="correction-block" id="correctionBlock">
+      <label><i class="ti ti-edit" aria-hidden="true"></i> Décrivez les corrections souhaitées</label>
+      <textarea id="correctionText" placeholder="Ex: Mets plus en avant les compétences cloud, reformule les missions de façon plus percutante..."></textarea>
+      <div class="corr-spinner" id="corrSpinner"><div class="spinner"></div><span>Régénération en cours...</span></div>
+      <button class="btn-regen" id="btnRegen" onclick="applyCorrection()"><i class="ti ti-refresh" aria-hidden="true"></i> Régénérer la fiche</button>
+    </div>
 
     <div class="counter-bar" id="counter-bar">
       Fiches générées par vous : <strong id="counter-val">0</strong>
@@ -861,12 +812,16 @@
 
     let currentPreviewId = null;
     let currentFilename = null;
+    let correctionDone = false;
 
     async function generateCV() {
       if (!selectedFile) return;
       btnGen.disabled = true;
       setStep(3);
       startProgress();
+      document.getElementById("resultBlock").classList.remove("open");
+      document.getElementById("previewBlock").classList.remove("open");
+      document.getElementById("correctionBlock").classList.remove("open");
 
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -880,7 +835,6 @@
           headers: {"Authorization": "Bearer " + token}
         });
         if (res.status === 401) { stopProgress(); doLogout(); return; }
-
         if (!res.ok) {
           const err = await res.json();
           stopProgress();
@@ -889,20 +843,20 @@
           setStep(2);
           return;
         }
-
         const result = await res.json();
         currentPreviewId = result.preview_id;
         currentFilename = result.filename;
+        correctionDone = false;
 
         stopProgress();
         showProgress(LOADING_MESSAGES[LOADING_MESSAGES.length - 1], 100, Math.floor((Date.now() - progressStartTime) / 1000));
         setStep(5);
         setTimeout(() => {
-          showSuccess(result.filename);
-          openPreview(result.preview_id, result.filename, result.pdf_available);
+          statusBox.style.display = "none";
+          showResult(result.filename, result.pdf_available);
         }, 400);
         updateCounter();
-      } catch (e) {
+      } catch(e) {
         stopProgress();
         showError("Impossible de contacter le serveur.");
         setStep(2);
@@ -910,97 +864,86 @@
       btnGen.disabled = false;
     }
 
-    function openPreview(previewId, filename, pdfAvailable) {
-      document.getElementById("previewFilename").textContent = filename;
-      document.getElementById("correctionBlock").classList.remove("open");
-      document.getElementById("correctionText").value = "";
-      document.getElementById("btnFix").style.display = "inline-block";
-      document.getElementById("btnFix").disabled = false;
+    function showResult(filename, pdfAvailable) {
+      document.getElementById("resultFilenameText").textContent = filename;
+      document.getElementById("btnFix").style.display = correctionDone ? "none" : "flex";
+      document.getElementById("previewBlock").classList.remove("open");
+      document.getElementById("previewFrame").src = "";
+      // Stocker si PDF dispo
+      document.getElementById("previewBlock").dataset.pdfAvailable = pdfAvailable ? "1" : "0";
+      document.getElementById("resultBlock").classList.add("open");
+    }
 
-      if (pdfAvailable) {
-        document.getElementById("previewIframe").src = `${API_URL}/preview/${previewId}/pdf?t=${Date.now()}`;
-        document.getElementById("previewIframe").style.display = "block";
+    function togglePreview() {
+      const block = document.getElementById("previewBlock");
+      const isOpen = block.classList.contains("open");
+      if (isOpen) {
+        block.classList.remove("open");
+        document.getElementById("previewFrame").src = "";
+        return;
+      }
+      block.classList.add("open");
+      const pdfAvail = block.dataset.pdfAvailable === "1";
+      document.getElementById("previewTitle").textContent = currentFilename || "Aperçu";
+      if (pdfAvail) {
+        document.getElementById("previewFrame").src = `${API_URL}/preview/${currentPreviewId}/pdf?token=${token}&t=${Date.now()}`;
+        document.getElementById("previewFrame").style.display = "block";
         document.getElementById("previewNoPdf").style.display = "none";
       } else {
-        document.getElementById("previewIframe").style.display = "none";
+        document.getElementById("previewFrame").style.display = "none";
         document.getElementById("previewNoPdf").style.display = "flex";
       }
-      document.getElementById("previewOverlay").classList.add("open");
     }
 
-    function closePreview() {
-      document.getElementById("previewOverlay").classList.remove("open");
-      document.getElementById("previewIframe").src = "";
-    }
-
-    async function downloadPreview() {
+    async function downloadResult() {
       if (!currentPreviewId) return;
-      const a = document.createElement("a");
-      a.href = `${API_URL}/preview/${currentPreviewId}/download`;
-      a.setAttribute("download", currentFilename || "FC_INFOTEL.docx");
-      // Ajouter le token dans l'URL via fetch
       const res = await fetch(`${API_URL}/preview/${currentPreviewId}/download`, {
         headers: {"Authorization": "Bearer " + token}
       });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = currentFilename || "FC_INFOTEL.docx";
-      document.body.appendChild(link); link.click();
-      document.body.removeChild(link);
+      const a = document.createElement("a");
+      a.href = url; a.download = currentFilename || "FC_INFOTEL.docx";
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      closePreview();
     }
 
     function showCorrection() {
       document.getElementById("correctionBlock").classList.add("open");
-      document.getElementById("btnFix").style.display = "none";
+      document.getElementById("correctionText").value = "";
       document.getElementById("correctionText").focus();
     }
 
     async function applyCorrection() {
       const correction = document.getElementById("correctionText").value.trim();
       if (!correction) return;
-
       const btnRegen = document.getElementById("btnRegen");
       const spinner = document.getElementById("corrSpinner");
       btnRegen.disabled = true;
-      spinner.style.display = "flex";
+      spinner.classList.add("show");
 
       const formData = new FormData();
       formData.append("correction", correction);
-
       try {
         const res = await fetch(`${API_URL}/preview/${currentPreviewId}/correct`, {
           method: "POST", body: formData,
           headers: {"Authorization": "Bearer " + token}
         });
-
-        if (!res.ok) {
-          const err = await res.json();
-          alert(err.detail || "Erreur lors de la correction");
-          return;
-        }
-
+        if (!res.ok) { const e = await res.json(); alert(e.detail || "Erreur correction"); return; }
         const result = await res.json();
         currentPreviewId = result.preview_id;
         currentFilename = result.filename;
-
-        // Afficher la version corrigée sans bouton corriger
-        document.getElementById("previewFilename").textContent = result.filename + " (corrigé)";
+        correctionDone = true;
+        document.getElementById("previewBlock").dataset.pdfAvailable = result.pdf_available ? "1" : "0";
         document.getElementById("correctionBlock").classList.remove("open");
-        document.getElementById("btnFix").style.display = "none"; // Plus de correction possible
-
-        if (result.pdf_available) {
-          document.getElementById("previewIframe").src = `${API_URL}/preview/${result.preview_id}/pdf?t=${Date.now()}`;
-          document.getElementById("previewIframe").style.display = "block";
-          document.getElementById("previewNoPdf").style.display = "none";
-        }
+        document.getElementById("previewBlock").classList.remove("open");
+        showResult(result.filename, result.pdf_available);
       } catch(e) {
-        alert("Erreur lors de la correction");
+        alert("Erreur lors de la correction.");
       } finally {
         btnRegen.disabled = false;
-        spinner.style.display = "none";
+        spinner.classList.remove("show");
       }
     }
 
