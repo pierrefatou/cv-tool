@@ -5,6 +5,8 @@ import tempfile
 import traceback
 import copy
 import shutil
+import uuid
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env", override=True)
@@ -27,6 +29,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 TEMPLATE_PATH = Path(__file__).parent.parent / "template" / "template_infotel.docx"
 FRONTEND_PATH = Path(__file__).parent.parent / "frontend" / "index.html"
 ADMIN_PATH = Path(__file__).parent.parent / "frontend" / "admin.html"
+TEMP_DIR = Path(tempfile.gettempdir()) / "cv_previews"
+TEMP_DIR.mkdir(exist_ok=True)
 security = HTTPBearer()
 
 
@@ -946,9 +950,184 @@ async def generate_cv(
 
     log_generation(user["username"], fname)
 
+    # Sauvegarder meta pour preview si besoin
+    preview_id = str(uuid.uuid4())
+    stored = TEMP_DIR / f"{preview_id}.docx"
+    shutil.copy2(output_path, stored)
+    (TEMP_DIR / f"{preview_id}.meta").write_text(fname)
+    (TEMP_DIR / f"{preview_id}.agence").write_text(agence)
+
     return FileResponse(output_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=fname)
+
+
+# ─── Preview & Correction ────────────────────────────────────────────────────
+
+@app.post("/generate-preview")
+async def generate_preview(
+    file: UploadFile = File(...),
+    job_description: str = Form(default=""),
+    influence: int = Form(default=0),
+    agence: str = Form(default="niort"),
+    user=Depends(get_current_user),
+):
+    """Génère la fiche et la stocke temporairement, retourne un ID de preview."""
+    content = await file.read()
+    filename_lower = file.filename.lower()
+
+    if filename_lower.endswith(".pdf"):
+        text = extract_text_from_pdf(content)
+    elif filename_lower.endswith(".docx") or filename_lower.endswith(".doc"):
+        text = extract_text_from_docx(content)
+    else:
+        raise HTTPException(400, "Format non supporté.")
+
+    if not text.strip():
+        raise HTTPException(400, "Impossible d'extraire le texte.")
+
+    try:
+        data = extract_cv_data(text, job_description=job_description, influence=influence)
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"L'IA n'a pas retourné un JSON valide: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"Erreur lors de l'appel IA: {e}")
+
+    try:
+        docx_path = build_docx(data, agence=agence)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur génération DOCX: {e}")
+
+    # Générer un ID unique et stocker le fichier
+    preview_id = str(uuid.uuid4())
+    prenom = data.get("prenom", "").strip().upper()
+    titre  = data.get("poste", "Consultant").strip().title()
+    fname  = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
+
+    stored_docx = TEMP_DIR / f"{preview_id}.docx"
+    shutil.copy2(docx_path, stored_docx)
+
+    # Convertir en PDF avec LibreOffice
+    try:
+        subprocess.run(
+            ["libreoffice", "--headless", "--convert-to", "pdf",
+             "--outdir", str(TEMP_DIR), str(stored_docx)],
+            timeout=60, capture_output=True
+        )
+        pdf_exists = (TEMP_DIR / f"{preview_id}.pdf").exists()
+    except Exception as e:
+        print(f"[PREVIEW] Erreur conversion PDF: {e}")
+        pdf_exists = False
+
+    return {
+        "preview_id": preview_id,
+        "filename": fname,
+        "pdf_available": pdf_exists,
+        "data": {
+            "nom": data.get("nom", ""),
+            "prenom": data.get("prenom", ""),
+            "poste": data.get("poste", ""),
+            "annees_experience": data.get("annees_experience", ""),
+        }
+    }
+
+
+@app.get("/preview/{preview_id}/pdf")
+async def get_preview_pdf(preview_id: str, user=Depends(get_current_user)):
+    """Retourne le PDF de prévisualisation."""
+    pdf_path = TEMP_DIR / f"{preview_id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "Prévisualisation non trouvée ou expirée.")
+    return FileResponse(str(pdf_path), media_type="application/pdf")
+
+
+@app.get("/preview/{preview_id}/download")
+async def download_preview(preview_id: str, user=Depends(get_current_user)):
+    """Télécharge le DOCX généré."""
+    docx_path = TEMP_DIR / f"{preview_id}.docx"
+    if not docx_path.exists():
+        raise HTTPException(404, "Fichier non trouvé ou expiré.")
+    # Récupérer le nom depuis un fichier meta si disponible
+    meta_path = TEMP_DIR / f"{preview_id}.meta"
+    fname = meta_path.read_text() if meta_path.exists() else "FC_INFOTEL.docx"
+    return FileResponse(str(docx_path),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=fname)
+
+
+@app.post("/preview/{preview_id}/correct")
+async def correct_preview(
+    preview_id: str,
+    correction: str = Form(...),
+    user=Depends(get_current_user),
+):
+    """Applique une correction IA sur la fiche existante."""
+    docx_path = TEMP_DIR / f"{preview_id}.docx"
+    if not docx_path.exists():
+        raise HTTPException(404, "Fiche non trouvée ou expirée.")
+
+    # Relire le DOCX pour extraire le texte
+    text = extract_text_from_docx(docx_path.read_bytes())
+
+    # Appel IA avec la correction
+    system_correction = SYSTEM_PROMPT + f"""
+
+INSTRUCTION DE CORRECTION :
+L'utilisateur a demandé la correction suivante sur la fiche déjà générée :
+"{correction}"
+Applique cette correction en priorité tout en conservant les informations existantes.
+"""
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6", max_tokens=16000,
+            system=system_correction,
+            messages=[{"role": "user", "content": USER_PROMPT + text}],
+        )
+        raw = message.content[0].text.strip()
+        raw = re.sub(r"^```json\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        data = json.loads(raw)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur correction IA: {e}")
+
+    # Récupérer l'agence depuis meta
+    agence_path = TEMP_DIR / f"{preview_id}.agence"
+    agence = agence_path.read_text() if agence_path.exists() else "niort"
+
+    try:
+        new_docx_path = build_docx(data, agence=agence)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur génération DOCX corrigé: {e}")
+
+    # Nouveau ID pour la version corrigée
+    new_id = str(uuid.uuid4())
+    prenom = data.get("prenom", "").strip().upper()
+    titre  = data.get("poste", "Consultant").strip().title()
+    fname  = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
+
+    new_docx = TEMP_DIR / f"{new_id}.docx"
+    shutil.copy2(new_docx_path, new_docx)
+    (TEMP_DIR / f"{new_id}.meta").write_text(fname)
+
+    # Convertir en PDF
+    try:
+        subprocess.run(
+            ["libreoffice", "--headless", "--convert-to", "pdf",
+             "--outdir", str(TEMP_DIR), str(new_docx)],
+            timeout=60, capture_output=True
+        )
+        pdf_exists = (TEMP_DIR / f"{new_id}.pdf").exists()
+    except Exception:
+        pdf_exists = False
+
+    log_generation(user["username"], fname + " (corrigé)")
+
+    return {
+        "preview_id": new_id,
+        "filename": fname,
+        "pdf_available": pdf_exists,
+        "corrected": True
+    }
 
 
 @app.get("/health")
