@@ -349,6 +349,22 @@
     }
     .counter-bar strong { color: #005491; }
 
+    .result-success { display:none; background:#f0fdf4; border:0.5px solid #bbf0c8; border-radius:12px; padding:12px 14px; margin-top:10px; }
+    .result-success.open { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .result-success-name { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:500; color:#166534; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .btn-corriger { flex-shrink:0; padding:6px 12px; background:#f0f4f8; color:#4a6278; border:0.5px solid #c5d8e8; border-radius:8px; font-size:12px; font-weight:500; cursor:pointer; white-space:nowrap; font-family:inherit; transition:background 0.15s; }
+    .btn-corriger:hover { background:#e2eaf4; color:#0E2841; }
+
+    .correction-box { display:none; background:#eef6ff; border:0.5px solid #b0cce8; border-radius:12px; padding:14px; margin-top:8px; }
+    .correction-box.open { display:block; }
+    .correction-box label { display:block; font-size:12px; font-weight:500; color:#0E2841; margin-bottom:8px; }
+    .correction-box textarea { width:100%; border:1.5px solid #b0cce8; border-radius:8px; padding:9px; font-size:13px; font-family:inherit; min-height:76px; resize:vertical; outline:none; background:white; box-sizing:border-box; }
+    .correction-box textarea:focus { border-color:#005491; }
+    .btn-regen { width:100%; margin-top:8px; padding:9px; background:#005491; color:white; border:none; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; gap:6px; }
+    .btn-regen:disabled { background:#94afc8; cursor:not-allowed; }
+    .regen-spinner { display:none; align-items:center; gap:8px; font-size:13px; color:#005491; margin-top:8px; }
+    .regen-spinner.show { display:flex; }
+
     /* Welcome popup */
     .welcome-overlay {
       position: fixed; inset: 0;
@@ -546,6 +562,21 @@
     </button>
 
     <div class="status-box" id="statusBox"></div>
+
+    <div class="result-success" id="resultSuccess">
+      <div class="result-success-name">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span id="resultSuccessName"></span>
+      </div>
+      <button class="btn-corriger" id="btnCorriger" onclick="showCorrectionBox()">✏️ Corriger</button>
+    </div>
+
+    <div class="correction-box" id="correctionBox">
+      <label>Décrivez les corrections souhaitées</label>
+      <textarea id="correctionText" placeholder="Ex: Mets plus en avant les compétences cloud, reformule les missions de façon plus percutante..."></textarea>
+      <div class="regen-spinner" id="regenSpinner"><div class="spinner"></div><span>Régénération en cours...</span></div>
+      <button class="btn-regen" id="btnRegen" onclick="applyCorrection()">🔄 Régénérer ma fiche</button>
+    </div>
 
     <div class="counter-bar" id="counter-bar">
       Fiches générées par vous : <strong id="counter-val">0</strong>
@@ -765,7 +796,7 @@
       formData.append("agence", document.getElementById("agenceSelect").value);
 
       try {
-        const res = await fetch(`${API_URL}/generate`, {
+        const res = await fetch(`${API_URL}/generate-and-store`, {
           method: "POST", body: formData,
           headers: {"Authorization": "Bearer " + token}
         });
@@ -790,6 +821,8 @@
             if (m) filename = m[1];
           }
         }
+        currentPreviewId = res.headers.get("x-preview-id") || null;
+        currentFilename = filename;
 
         const blob = await res.blob();
         const url  = URL.createObjectURL(blob);
@@ -802,7 +835,10 @@
         stopProgress();
         showProgress(LOADING_MESSAGES[LOADING_MESSAGES.length - 1], 100, Math.floor((Date.now() - progressStartTime) / 1000));
         setStep(5);
-        setTimeout(() => { showSuccess(filename); }, 400);
+        setTimeout(() => {
+          showSuccess(filename);
+          showResultBar(filename);
+        }, 400);
         updateCounter();
       } catch (e) {
         stopProgress();
@@ -810,6 +846,66 @@
         setStep(2);
       }
       btnGen.disabled = false;
+    }
+
+    let currentPreviewId = null;
+    let currentFilename = null;
+
+    function showResultBar(filename) {
+      document.getElementById("resultSuccessName").textContent = filename;
+      document.getElementById("btnCorriger").style.display = "inline-block";
+      document.getElementById("correctionBox").classList.remove("open");
+      document.getElementById("correctionText").value = "";
+      document.getElementById("resultSuccess").classList.add("open");
+    }
+
+    function showCorrectionBox() {
+      document.getElementById("correctionBox").classList.add("open");
+      document.getElementById("correctionText").focus();
+    }
+
+    async function applyCorrection() {
+      const correction = document.getElementById("correctionText").value.trim();
+      if (!correction || !currentPreviewId) return;
+      const btnRegen = document.getElementById("btnRegen");
+      const spinner = document.getElementById("regenSpinner");
+      btnRegen.disabled = true;
+      spinner.classList.add("show");
+
+      const formData = new FormData();
+      formData.append("correction", correction);
+      try {
+        const res = await fetch(`${API_URL}/correct/${currentPreviewId}`, {
+          method: "POST", body: formData,
+          headers: {"Authorization": "Bearer " + token}
+        });
+        if (!res.ok) { const e = await res.json(); showError(e.detail || "Erreur correction"); return; }
+
+        let filename = currentFilename;
+        const cd = res.headers.get("content-disposition");
+        if (cd) {
+          const utf8 = cd.match(/filename\*=utf-8''([^;]+)/i);
+          if (utf8) filename = decodeURIComponent(utf8[1]);
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        document.getElementById("correctionBox").classList.remove("open");
+        document.getElementById("btnCorriger").style.display = "none";
+        document.getElementById("resultSuccessName").textContent = filename + " (corrigé)";
+        updateCounter();
+      } catch(e) {
+        showError("Erreur lors de la correction.");
+      } finally {
+        btnRegen.disabled = false;
+        spinner.classList.remove("show");
+      }
     }
 
     function showLoading(msg) {

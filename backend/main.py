@@ -5,6 +5,7 @@ import tempfile
 import traceback
 import copy
 import shutil
+import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env", override=True)
@@ -27,6 +28,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 TEMPLATE_PATH = Path(__file__).parent.parent / "template" / "template_infotel.docx"
 FRONTEND_PATH = Path(__file__).parent.parent / "frontend" / "index.html"
 ADMIN_PATH = Path(__file__).parent.parent / "frontend" / "admin.html"
+TEMP_DIR = Path(tempfile.gettempdir()) / "cv_previews"
+TEMP_DIR.mkdir(exist_ok=True)
 security = HTTPBearer()
 
 
@@ -947,6 +950,107 @@ async def generate_cv(
     log_generation(user["username"], fname)
 
     return FileResponse(output_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=fname)
+
+
+# ─── Correction ───────────────────────────────────────────────────────────────
+
+@app.post("/generate-and-store")
+async def generate_and_store(
+    file: UploadFile = File(...),
+    job_description: str = Form(default=""),
+    influence: int = Form(default=0),
+    agence: str = Form(default="niort"),
+    user=Depends(get_current_user),
+):
+    """Génère la fiche, la télécharge ET la stocke pour correction éventuelle."""
+    content_bytes = await file.read()
+    filename_lower = file.filename.lower()
+    if filename_lower.endswith(".pdf"):
+        text = extract_text_from_pdf(content_bytes)
+    elif filename_lower.endswith(".docx") or filename_lower.endswith(".doc"):
+        text = extract_text_from_docx(content_bytes)
+    else:
+        raise HTTPException(400, "Format non supporté.")
+    if not text.strip():
+        raise HTTPException(400, "Impossible d'extraire le texte.")
+    try:
+        data = extract_cv_data(text, job_description=job_description, influence=influence)
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"L'IA n'a pas retourné un JSON valide: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"Erreur appel IA: {e}")
+    try:
+        docx_path = build_docx(data, agence=agence)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur génération DOCX: {e}")
+
+    prenom = data.get("prenom", "").strip().upper()
+    titre  = data.get("poste", "Consultant").strip().title()
+    fname  = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
+
+    # Stocker pour correction
+    preview_id = str(uuid.uuid4())
+    stored = TEMP_DIR / f"{preview_id}.docx"
+    shutil.copy2(docx_path, stored)
+    (TEMP_DIR / f"{preview_id}.meta").write_text(fname)
+    (TEMP_DIR / f"{preview_id}.agence").write_text(agence)
+
+    log_generation(user["username"], fname)
+
+    return FileResponse(docx_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=fname,
+        headers={"X-Preview-Id": preview_id, "X-Filename": fname,
+                 "Access-Control-Expose-Headers": "X-Preview-Id, X-Filename"})
+
+
+@app.post("/correct/{preview_id}")
+async def correct_fiche(
+    preview_id: str,
+    correction: str = Form(...),
+    user=Depends(get_current_user),
+):
+    """Applique une correction IA et retourne la fiche corrigée."""
+    docx_path = TEMP_DIR / f"{preview_id}.docx"
+    if not docx_path.exists():
+        raise HTTPException(404, "Fiche originale non trouvée (expirée ?).")
+    text = extract_text_from_docx(docx_path.read_bytes())
+    agence = (TEMP_DIR / f"{preview_id}.agence").read_text() if (TEMP_DIR / f"{preview_id}.agence").exists() else "niort"
+
+    system_correction = SYSTEM_PROMPT + f"""
+
+INSTRUCTION DE CORRECTION :
+L'utilisateur demande la correction suivante sur la fiche déjà générée :
+"{correction}"
+Applique cette correction en priorité tout en conservant les informations existantes du CV.
+"""
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6", max_tokens=16000,
+            system=system_correction,
+            messages=[{"role": "user", "content": USER_PROMPT + text}],
+        )
+        raw = message.content[0].text.strip()
+        raw = re.sub(r"^```json\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        data = json.loads(raw)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur correction IA: {e}")
+
+    try:
+        new_path = build_docx(data, agence=agence)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur génération DOCX corrigé: {e}")
+
+    prenom = data.get("prenom", "").strip().upper()
+    titre  = data.get("poste", "Consultant").strip().title()
+    fname  = f"FC {prenom} - {titre} - INFOTEL.docx" if prenom else f"FC - {titre} - INFOTEL.docx"
+
+    log_generation(user["username"], fname + " (corrigé)")
+
+    return FileResponse(new_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename=fname)
 
