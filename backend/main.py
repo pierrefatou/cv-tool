@@ -997,11 +997,10 @@ async def generate_preview(
     (TEMP_DIR / f"{preview_id}.agence").write_text(agence)
 
     try:
-        subprocess.run(
-            ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(TEMP_DIR), str(stored_docx)],
-            timeout=60, capture_output=True
-        )
-        pdf_exists = (TEMP_DIR / f"{preview_id}.pdf").exists()
+        from docx2pdf import convert
+        pdf_path = TEMP_DIR / f"{preview_id}.pdf"
+        convert(str(stored_docx), str(pdf_path))
+        pdf_exists = pdf_path.exists()
     except Exception as e:
         print(f"[PREVIEW] Erreur PDF: {e}")
         pdf_exists = False
