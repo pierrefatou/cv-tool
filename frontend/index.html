@@ -712,9 +712,10 @@
       "Mise en page au format Infotel...",
       "Finalisation du document..."
     ];
-  function startProgress() {
-      const jobDesc = document.getElementById("jobDescription").value || "";
-      const ESTIMATED_DURATION = jobDesc.trim().length > 0 ? 180 : 90;
+    const jobDesc = document.getElementById("jobDescription").value || "";
+    const ESTIMATED_DURATION = jobDesc.trim().length > 0 ? 180 : 90; // secondes, ajustable selon le temps réel observé
+
+    function startProgress() {
       progressStartTime = Date.now();
       let msgIndex = 0;
       showProgress(LOADING_MESSAGES[0], 0, 0);
