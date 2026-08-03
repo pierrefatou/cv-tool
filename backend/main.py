@@ -996,6 +996,11 @@ async def generate_and_store(
     shutil.copy2(docx_path, stored)
     (TEMP_DIR / f"{preview_id}.meta").write_text(fname)
     (TEMP_DIR / f"{preview_id}.agence").write_text(agence)
+    # Stocker le JSON original pour la correction
+    (TEMP_DIR / f"{preview_id}.json").write_text(json.dumps(data, ensure_ascii=False))
+    # Stocker le job_description et influence pour la correction
+    (TEMP_DIR / f"{preview_id}.jobdesc").write_text(job_description)
+    (TEMP_DIR / f"{preview_id}.influence").write_text(str(influence))
 
     log_generation(user["username"], fname)
 
@@ -1013,24 +1018,35 @@ async def correct_fiche(
     user=Depends(get_current_user),
 ):
     """Applique une correction IA et retourne la fiche corrigée."""
-    docx_path = TEMP_DIR / f"{preview_id}.docx"
-    if not docx_path.exists():
+    json_path = TEMP_DIR / f"{preview_id}.json"
+    if not json_path.exists():
         raise HTTPException(404, "Fiche originale non trouvée (expirée ?).")
-    text = extract_text_from_docx(docx_path.read_bytes())
+
+    # Utiliser le JSON original stocké
+    original_data = json.loads(json_path.read_text(encoding="utf-8"))
     agence = (TEMP_DIR / f"{preview_id}.agence").read_text() if (TEMP_DIR / f"{preview_id}.agence").exists() else "niort"
+    job_description = (TEMP_DIR / f"{preview_id}.jobdesc").read_text() if (TEMP_DIR / f"{preview_id}.jobdesc").exists() else ""
+    influence = int((TEMP_DIR / f"{preview_id}.influence").read_text()) if (TEMP_DIR / f"{preview_id}.influence").exists() else 0
 
     system_correction = SYSTEM_PROMPT + f"""
 
 INSTRUCTION DE CORRECTION :
 L'utilisateur demande la correction suivante sur la fiche déjà générée :
 "{correction}"
-Applique cette correction en priorité tout en conservant les informations existantes du CV.
+Applique cette correction en priorité. Tu peux modifier la reformulation, l'ordre, la mise en avant de certaines compétences ou expériences, mais conserve toutes les informations factuelles du JSON original.
 """
+    # Envoyer le JSON original comme base pour la correction
+    user_content = f"""Voici les données JSON de la fiche déjà générée :
+
+{json.dumps(original_data, ensure_ascii=False, indent=2)}
+
+Applique la correction demandée et retourne un nouveau JSON complet avec le même format."""
+
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6", max_tokens=16000,
             system=system_correction,
-            messages=[{"role": "user", "content": USER_PROMPT + text}],
+            messages=[{"role": "user", "content": user_content}],
         )
         raw = message.content[0].text.strip()
         raw = re.sub(r"^```json\s*", "", raw)
