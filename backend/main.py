@@ -432,14 +432,6 @@ def _fill_competences(tbl, data):
         if tech_title:
             _write_para_xml(tech_title, "Compétences Techniques :")
 
-         
-        # Effacer les paras fantômes entre domaines et titre tech
-        for p in paras[domain_start + 5:tech_title_idx]:
-            _remove_bullet_style(p)
-
-        if tech_title:
-            _write_para_xml(tech_title, "Compétences Techniques :")
-
         # 5 lignes techniques
         tech_paras = tech_paras_found
         for i, para in enumerate(tech_paras):
