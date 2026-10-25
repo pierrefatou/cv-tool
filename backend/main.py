@@ -945,7 +945,11 @@ async def generate_cv(
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    try:
+        get_all_users()
+        return {"status": "ok", "db": "connected"}
+    except Exception:
+        return {"status": "ok", "db": "error"}
 
 
 @app.get("/", response_class=HTMLResponse)
