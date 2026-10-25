@@ -816,18 +816,25 @@ FOOTER_REPLACEMENTS = {
         ("06 60 23 72 61",                     "07 63 48 54 20"),
     ],
 
-    # Agence Tours : uniquement Béatrice HERITIER (1 seule ligne, pas d'adresse postale)
-    "tours": [
-        ("Infotel Niort,",                     "Infotel Tours,"),
-        (" 4 Bd Louis Tardy, 79000 NIORT",     ""),
-        ("Robin ",                             "Béatrice "),
-        ("LAVOGEZ",                            "HERITIER"),
-        ("06 64 41 42 84",                     "06 62 01 25 58"),
-        # Effacer la 2ème ligne (Pierre FATOU)
-        ("Pierre ",                            ""),
-        ("FATOU",                              ""),
-        ("06 60 23 72 61",                     ""),
-    ],
+# Agence Tours : uniquement Béatrice HERITIER (1 seule ligne, pas d'adresse postale)
+"tours": [
+    ("Infotel Niort,",                     "Infotel Tours,"),
+    (" 4 Bd Louis Tardy, 79000 NIORT",     ""),
+    # Effacer la ligne Anne-Sophie MORANCAIS (Directrice d'Agence)
+    ("Anne-Sophie ",                       ""),
+    ("MORANCAIS",                          ""),
+    ("- Directrice d\u2019Agence -",       ""),
+    ("- Directrice d'Agence -",            ""),
+    ("06 82 30 40 25",                     ""),
+    # Remplacer Robin LAVOGEZ → Béatrice HERITIER
+    ("Robin ",                             "B\u00e9atrice "),
+    ("LAVOGEZ",                            "HERITIER"),
+    ("06 64 41 42 84",                     "06 62 01 25 58"),
+    # Effacer la ligne Pierre FATOU
+    ("Pierre ",                            ""),
+    ("FATOU",                              ""),
+    ("06 60 23 72 61",                     ""),
+],
 }
 def _fill_footer_zip(docx_path: str, agence: str):
     """Patch footer*.xml directement dans le zip — contourne le problème de splits de w:t."""
