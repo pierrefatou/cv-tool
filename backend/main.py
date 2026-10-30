@@ -815,36 +815,65 @@ FOOTER_REPLACEMENTS = {
         ("FATOU",                              "FILLION"),
         ("06 60 23 72 61",                     "07 63 48 54 20"),
     ],
-
-# Agence Tours : uniquement Béatrice HERITIER (1 seule ligne, pas d'adresse postale)
-"tours": [
-    ("Infotel Niort,",                     "Infotel Tours,"),
-    (" 4 Bd Louis Tardy, 79000 NIORT",     ""),
-    # Effacer la ligne Anne-Sophie MORANCAIS (Directrice d'Agence)
-    ("Anne-Sophie ",                       ""),
-    ("MORANCAIS",                          ""),
-    ("- Directrice d\u2019Agence -",       ""),
-    ("- Directrice d'Agence -",            ""),
-    ("06 82 30 40 25",                     ""),
-    # Remplacer Robin LAVOGEZ → Béatrice HERITIER
-    ("Robin ",                             "B\u00e9atrice "),
-    ("LAVOGEZ",                            "HERITIER"),
-    ("06 64 41 42 84",                     "06 62 01 25 58"),
-    # Effacer la ligne Pierre FATOU
-    ("Pierre ",                            ""),
-    ("FATOU",                              ""),
-    ("06 60 23 72 61",                     ""),
-],
 }
+
+# Paragraphes à supprimer entièrement pour Tours (suppression XML par paragraphe dans txbxContent)
+FOOTER_REMOVE_PARAS = {
+    "tours": ["MORANCAIS", "Anne-Sophie", "FATOU", "Pierre FATOU"],
+}
+
+# Remplacements textuels pour Tours (appliqués après suppression des paragraphes)
+FOOTER_REPLACEMENTS_TOURS = [
+    (" Niort,",                                  " Tours,"),   # run splitté : "Infotel" + " Niort,"
+    (" 4 Bd Louis Tardy, 79000 NIORT",           ""),
+    ("Anne-Sophie ",                              ""),
+    ("MORANCAIS",                                ""),
+    ("- Directrice d\u2019Agence -",             ""),
+    ("- Directrice d'Agence -",                  ""),
+    ("06 82 30 40 25",                           ""),
+    ("Pierre ",                                  ""),
+    ("FATOU",                                    ""),
+    ("06 60 23 72 61",                           ""),
+    ("Robin ",                                   "B\u00e9atrice "),
+    ("LAVOGEZ",                                  "HERITIER"),
+    ("06 64 41 42 84",                           "06 62 01 25 58"),
+]
+
+
+def _remove_footer_paragraphs(xml: str, keywords: list) -> str:
+    """Supprime les paragraphes dans txbxContent contenant l\'un des mots-clés.
+    Le paragraphe racine (parent=ftr) est ignoré — traité par remplacements textuels."""
+    from lxml import etree
+    ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    root = etree.fromstring(xml.encode('utf-8'))
+    txbx_ns = f'{{{ns}}}txbxContent'
+    for para in root.findall(f'.//{{{ns}}}p'):
+        parent = para.getparent()
+        if parent is None or parent.tag != txbx_ns:
+            continue
+        texts = para.findall(f'.//{{{ns}}}t')
+        full_text = ''.join(t.text or '' for t in texts)
+        if any(kw in full_text for kw in keywords):
+            print(f"[FOOTER] Suppression paragraphe txbx: [{full_text[:80]}]")
+            parent.remove(para)
+    return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True).decode('utf-8')
+
+
 def _fill_footer_zip(docx_path: str, agence: str):
     """Patch footer*.xml directement dans le zip — contourne le problème de splits de w:t."""
     import io, zipfile as zf
 
     agence = agence.lower().strip()
-    replacements = FOOTER_REPLACEMENTS.get(agence)
-    if not replacements:
-        print(f"[FOOTER] Agence '{agence}' : pas de remplacement défini.")
-        return
+
+    if agence == "tours":
+        remove_keywords = FOOTER_REMOVE_PARAS.get("tours", [])
+        replacements = FOOTER_REPLACEMENTS_TOURS
+    else:
+        remove_keywords = []
+        replacements = FOOTER_REPLACEMENTS.get(agence)
+        if not replacements:
+            print(f"[FOOTER] Agence '{agence}' : pas de remplacement défini.")
+            return
 
     with open(docx_path, "rb") as fh:
         raw = fh.read()
@@ -857,6 +886,8 @@ def _fill_footer_zip(docx_path: str, agence: str):
             data = zin.read(item.filename)
             if "footer" in item.filename.lower() and item.filename.endswith(".xml"):
                 xml = data.decode("utf-8")
+                if remove_keywords:
+                    xml = _remove_footer_paragraphs(xml, remove_keywords)
                 for old, new in replacements:
                     n = xml.count(old)
                     if n:
