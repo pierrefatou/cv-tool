@@ -796,12 +796,14 @@ FOOTER_REPLACEMENTS = {
     # "Benjamin BOUCHER" visuellement ~5 espaces plus large que Robin LAVOGEZ
     # → run 23 espaces → 15 espaces (total 18 vs 26 pour Robin, -8)
     "lemans": [
-        ("Infotel Niort,",                     "Infotel Le Mans,"),
-        (" 4 Bd Louis Tardy, 79000 NIORT",     " 2 Promenade d\u2019Androm\u00e8de, 72000 LE MANS"),
-        ("Robin ",                             "Benjamin "),
-        ("LAVOGEZ",                            "BOUCHER"),
-        ("06 64 41 42 84",                     "07 64 26 10 63"),
-        ("                       ",            "                   "),  # 23 → 19 espaces (total 22)
+        ("Infotel Niort,",                         "Infotel Le Mans,"),
+        (" 4 Bd Louis Tardy, 79000 NIORT",         " 2 Promenade d\u2019Androm\u00e8de, 72000 LE MANS"),
+        ("Robin ",                                  "Benjamin "),
+        ("LAVOGEZ                       ",          "BOUCHER"),
+        ("06 64 41 42 84",                          "07 64 26 10 63"),
+        # Corriger casse Pierre : Ingénieur d'affaires → d'Affaires
+        ("- Ing\u00e9nieur d'affaires -",          "- Ing\u00e9nieur d'Affaires -"),
+        ("- Ing\u00e9nieur d\u2019affaires -",    "- Ing\u00e9nieur d\u2019Affaires -"),
     ],
 
     # Agence Orléans
@@ -901,6 +903,7 @@ def _set_footer_font_sizes_tours(xml: str) -> str:
             print(f"[FOOTER FONT] Béatrice → 10pt: [{full_text[:60]}]")
 
     return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True).decode('utf-8')
+
 
 def _fill_footer_zip(docx_path: str, agence: str):
     """Patch footer*.xml directement dans le zip — contourne le problème de splits de w:t."""
