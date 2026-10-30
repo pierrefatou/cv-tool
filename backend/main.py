@@ -824,7 +824,7 @@ FOOTER_REMOVE_PARAS = {
 
 # Remplacements textuels pour Tours (appliqués après suppression des paragraphes)
 FOOTER_REPLACEMENTS_TOURS = [
-    (" Niort,",                                  " Tours,"),   # run splitté : "Infotel" + " Niort,"
+    (" Niort,",                                  " Tours"),    # run splitté : "Infotel" + " Niort," → sans virgule
     (" 4 Bd Louis Tardy, 79000 NIORT",           ""),
     ("Anne-Sophie ",                              ""),
     ("MORANCAIS",                                ""),
@@ -837,6 +837,10 @@ FOOTER_REPLACEMENTS_TOURS = [
     ("Robin ",                                   "B\u00e9atrice "),
     ("LAVOGEZ",                                  "HERITIER"),
     ("06 64 41 42 84",                           "06 62 01 25 58"),
+    ("- Ing\u00e9nieur d\u2019Affaires -",       "- Directrice d\u2019Agence -"),
+    ("- Ing\u00e9nieur d'Affaires -",            "- Directrice d'Agence -"),
+    ("- ing\u00e9nieur d\u2019affaires -",       "- Directrice d\u2019Agence -"),
+    ("- ing\u00e9nieur d'affaires -",            "- Directrice d'Agence -"),
 ]
 
 
@@ -858,6 +862,45 @@ def _remove_footer_paragraphs(xml: str, keywords: list) -> str:
             parent.remove(para)
     return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True).decode('utf-8')
 
+
+
+def _set_footer_font_sizes_tours(xml: str) -> str:
+    """Ajuste les tailles de police du footer Tours :
+    - Paragraphe contenant 'Infotel Tours' (ou 'Infotel Niort') → 12pt (w:sz val=24)
+    - Paragraphe contenant 'Béatrice HERITIER' (ou 'Robin LAVOGEZ') → 10pt (w:sz val=20)
+    Fonctionne sur les paragraphes txbxContent ET sur le paragraphe racine (ftr).
+    """
+    from lxml import etree
+    ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    W = f'{{{ns}}}'
+    root = etree.fromstring(xml.encode('utf-8'))
+
+    def set_sz_in_para(para, val_str):
+        for r in para.findall(f'.//{W}r'):
+            rPr = r.find(f'{W}rPr')
+            if rPr is None:
+                rPr = etree.SubElement(r, f'{W}rPr')
+                r.insert(0, rPr)
+            for tag in (f'{W}sz', f'{W}szCs'):
+                el = rPr.find(tag)
+                if el is None:
+                    el = etree.SubElement(rPr, tag)
+                el.set(f'{W}val', val_str)
+
+    INFOTEL_KW = ['Infotel', 'INFOTEL']
+    BEATRICE_KW = ['LAVOGEZ', 'HERITIER', 'Robin', 'Béatrice', 'B\u00e9atrice']
+
+    for para in root.findall(f'.//{W}p'):
+        texts = para.findall(f'.//{W}t')
+        full_text = ''.join(t.text or '' for t in texts)
+        if any(kw in full_text for kw in INFOTEL_KW):
+            set_sz_in_para(para, '24')  # 12pt
+            print(f"[FOOTER FONT] Infotel → 12pt: [{full_text[:60]}]")
+        elif any(kw in full_text for kw in BEATRICE_KW):
+            set_sz_in_para(para, '20')  # 10pt
+            print(f"[FOOTER FONT] Béatrice → 10pt: [{full_text[:60]}]")
+
+    return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True).decode('utf-8')
 
 def _fill_footer_zip(docx_path: str, agence: str):
     """Patch footer*.xml directement dans le zip — contourne le problème de splits de w:t."""
@@ -893,6 +936,8 @@ def _fill_footer_zip(docx_path: str, agence: str):
                     if n:
                         xml = xml.replace(old, new)
                         print(f"[FOOTER] '{old}' → '{new}'  ({n}×)")
+                if agence == "tours":
+                    xml = _set_footer_font_sizes_tours(xml)
                 data = xml.encode("utf-8")
             zout.writestr(item, data)
 
